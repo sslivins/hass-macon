@@ -1,14 +1,16 @@
 # Macon Heat Pump Controller
 
-Home Assistant integration for the **Arctic Controller** — a custom,
-self-built controller for Macon heat pumps. It talks to the Arctic Controller
-hardware/firmware, **not** the OEM Macon controller, and is not affiliated
-with or endorsed by Macon. It pairs one local controller per config entry and
-exposes its reported state, exact working modes, temperatures, setpoints,
-diagnostics, and command controls.
+Home Assistant integration for the
+[**Arctic Controller**](https://github.com/sslivins/arctic-controller) — a
+custom, self-built controller for Macon heat pumps. It talks to the Arctic
+Controller hardware/firmware, **not** the OEM Macon controller, and is not
+affiliated with or endorsed by Macon. It pairs one local controller per config
+entry and exposes its reported state, exact working modes, temperatures,
+setpoints, diagnostics, and command controls.
 
-> **Compatibility:** This integration only works with the Arctic Controller
-> (the DIY/self-built controller). It does not support the stock OEM Macon
+> **Compatibility:** This integration only works with the
+> [Arctic Controller](https://github.com/sslivins/arctic-controller) (the
+> DIY/self-built controller). It does not support the stock OEM Macon
 > controller.
 
 The integration uses [`pymacon`](https://github.com/sslivins/pymacon) for
