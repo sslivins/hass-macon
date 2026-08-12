@@ -170,7 +170,7 @@ class MaconConfigFlow(
         self._abort_if_unique_id_configured(
             updates=self._entry_data(user_input, pairing)
         )
-        title = f"Macon Heat Pump Controller {pairing.device_id[-6:].upper()}"
+        title = f"Macon Heat Pump Controller {pairing.device_id[-4:].upper()}"
         return (
             self.async_create_entry(
                 title=title,
