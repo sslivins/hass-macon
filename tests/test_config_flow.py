@@ -122,6 +122,39 @@ async def test_duplicate_manual_pairing_preserves_rotated_token(
     assert existing.data[CONF_TOKEN] == TOKEN
 
 
+async def test_zeroconf_shows_friendly_name_not_raw_device_id(
+    hass: HomeAssistant,
+) -> None:
+    """A newly discovered controller is presented with its friendly name
+    (Macon Heat Pump Controller + last 4), not the raw MAC-style device id."""
+    discovery = ZeroconfServiceInfo(
+        ip_address=ip_address("192.168.1.22"),
+        ip_addresses=[ip_address("192.168.1.22")],
+        port=None,
+        hostname="arctic.local.",
+        type="_arctic._tcp.local.",
+        name="Arctic._arctic._tcp.local.",
+        properties={"device": "arctic-controller", "id": "aabbccddE540"},
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_ZEROCONF},
+        data=discovery,
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "confirm"
+    flow = next(
+        f
+        for f in hass.config_entries.flow.async_progress()
+        if f["flow_id"] == result["flow_id"]
+    )
+    assert flow["context"]["title_placeholders"] == {
+        "name": "Macon Heat Pump Controller E540"
+    }
+
+
 async def test_zeroconf_uses_default_port_and_prevents_duplicates(
     hass: HomeAssistant,
 ) -> None:
