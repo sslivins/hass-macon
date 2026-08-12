@@ -4,9 +4,9 @@
   "codeowners": ["@sslivins"],
   "config_flow": true,
   "documentation": "https://github.com/sslivins/hass-macon",
-  "issue_tracker": "https://github.com/sslivins/hass-macon/issues",
   "integration_type": "device",
   "iot_class": "local_push",
+  "issue_tracker": "https://github.com/sslivins/hass-macon/issues",
   "requirements": [
     "pymacon==0.2.1"
   ],
