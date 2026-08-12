@@ -44,7 +44,6 @@ def user_data() -> dict[str, object]:
     return {
         CONF_HOST: "192.168.1.21",
         CONF_PORT: DEFAULT_PORT,
-        CONF_FINGERPRINT: FINGERPRINT,
         CONF_PAIRING_CODE: "123456",
     }
 
@@ -70,13 +69,13 @@ async def test_user_flow_success(
     assert result["data"][CONF_FINGERPRINT] == FINGERPRINT
 
 
-async def test_user_flow_rejects_bad_fingerprint(
+async def test_user_flow_rejects_certificate_mismatch(
     hass: HomeAssistant,
 ) -> None:
     with patch(
         "custom_components.macon.config_flow."
         "MaconClient.pair",
-        AsyncMock(side_effect=MaconCertificateError("wrong pin")),
+        AsyncMock(side_effect=MaconCertificateError("cert mismatch")),
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": SOURCE_USER}
@@ -86,7 +85,7 @@ async def test_user_flow_rejects_bad_fingerprint(
         )
 
     assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"base": "invalid_fingerprint"}
+    assert result["errors"] == {"base": "certificate_mismatch"}
 
 
 async def test_duplicate_manual_pairing_preserves_rotated_token(

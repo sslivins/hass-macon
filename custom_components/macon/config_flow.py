@@ -105,7 +105,6 @@ class MaconConfigFlow(
             step_id="confirm",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_FINGERPRINT): str,
                     vol.Required(CONF_PAIRING_CODE): str,
                 }
             ),
@@ -132,7 +131,6 @@ class MaconConfigFlow(
             pair_input = {
                 CONF_HOST: user_input[CONF_HOST],
                 CONF_PORT: user_input[CONF_PORT],
-                CONF_FINGERPRINT: user_input[CONF_FINGERPRINT],
                 CONF_PAIRING_CODE: user_input[CONF_PAIRING_CODE],
             }
             pairing, error = await self._async_claim(pair_input)
@@ -158,7 +156,6 @@ class MaconConfigFlow(
             data_schema=self._schema(
                 host=self._discovered_host,
                 port=self._discovered_port,
-                fingerprint=None,
             ),
             errors=errors,
         )
@@ -189,12 +186,11 @@ class MaconConfigFlow(
             pairing = await MaconClient.pair(
                 user_input[CONF_HOST],
                 user_input[CONF_PAIRING_CODE],
-                user_input[CONF_FINGERPRINT],
                 port=user_input[CONF_PORT],
                 session=async_get_clientsession(self.hass),
             )
         except MaconCertificateError:
-            return None, "invalid_fingerprint"
+            return None, "certificate_mismatch"
         except MaconPairingError:
             return None, "invalid_pairing_code"
         except MaconConnectionError:
@@ -244,19 +240,14 @@ class MaconConfigFlow(
         *,
         host: str | None,
         port: int,
-        fingerprint: str | None = None,
     ) -> vol.Schema:
-        fields: dict[Any, Any] = {
-            # The firmware's default hostname is a legacy wire identity.
-            vol.Required(
-                CONF_HOST, default=host or "arctic.local"
-            ): str,
-            vol.Required(CONF_PORT, default=port): int,
-            vol.Required(CONF_FINGERPRINT): str,
-            vol.Required(CONF_PAIRING_CODE): str,
-        }
-        if fingerprint is not None:
-            fields[vol.Required(
-                CONF_FINGERPRINT, default=fingerprint
-            )] = fields.pop(vol.Required(CONF_FINGERPRINT))
-        return vol.Schema(fields)
+        return vol.Schema(
+            {
+                # The firmware's default hostname is a legacy wire identity.
+                vol.Required(
+                    CONF_HOST, default=host or "arctic.local"
+                ): str,
+                vol.Required(CONF_PORT, default=port): int,
+                vol.Required(CONF_PAIRING_CODE): str,
+            }
+        )
