@@ -75,6 +75,13 @@ class MaconRuntime:
             self._async_capabilities_received
         )
         self.snapshot = await self.client.start()
+        if self.snapshot is not None:
+            # Seed the fault baseline from the initial snapshot so an already
+            # active fault is not re-announced on startup, and the first
+            # pushed transition fires an event.
+            error = self.snapshot.state.error
+            self._last_fault_active = error.active
+            self._last_fault_code = error.code
         self.status = self.client.status
 
     async def async_shutdown(self) -> None:
