@@ -51,22 +51,19 @@ DESCRIPTIONS: tuple[MaconBinarySensorDescription, ...] = (
     MaconBinarySensorDescription(
         key="compressor",
         name="Compressor",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda value: value.state.components.compressor,
     ),
     MaconBinarySensorDescription(
         key="fan",
         name="Fan",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda value: value.state.components.fan,
     ),
     MaconBinarySensorDescription(
         key="water_pump",
         name="Water pump",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
+        device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda value: value.state.components.water_pump,
     ),
     MaconBinarySensorDescription(

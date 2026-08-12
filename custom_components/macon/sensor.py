@@ -128,7 +128,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfFrequency.HERTZ,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
         value_fn=lambda value: (
             value.state.readings.compressor_frequency_hz
         ),
@@ -139,7 +138,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         native_unit_of_measurement="rpm",
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
         value_fn=lambda value: value.state.readings.fan_rpm,
     ),
     MaconSensorDescription(
@@ -168,7 +166,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         key="fan_level",
         name="Fan level",
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
         value_fn=lambda value: value.state.components.fan_level,
     ),
     MaconSensorDescription(
@@ -188,7 +185,6 @@ EXTRA_TEMPERATURES: tuple[MaconSensorDescription, ...] = tuple(
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
         value_fn=value_fn,
     )
     for key, name, value_fn in (
