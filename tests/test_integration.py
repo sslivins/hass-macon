@@ -301,3 +301,80 @@ async def test_platform_setup_failure_cleans_up_running_client(
         await hass.async_block_till_done()
 
     mock_clients["controller.local"].stop.assert_awaited_once()
+
+
+async def test_fault_sensor_and_event_track_onset_and_clear(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    fault = entity_id(hass, SENSOR_DOMAIN, "arctic-001_fault_code")
+
+    events: list = []
+    hass.bus.async_listen("macon_fault", events.append)
+
+    assert hass.states.get(fault).state == "ok"
+
+    client.snapshot_callback(
+        make_snapshot(
+            "arctic-001",
+            revision=2,
+            operation="fault",
+            error={
+                "active": True,
+                "code": "P02",
+                "name": "HIGH_PRESSURE",
+                "description": "High pressure protection activated",
+                "severity": "critical",
+            },
+        )
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get(fault)
+    assert state.state == "P02"
+    assert state.attributes["description"] == (
+        "High pressure protection activated"
+    )
+    assert len(events) == 1
+    assert events[0].data == {
+        "device_id": "arctic-001",
+        "active": True,
+        "code": "P02",
+        "name": "HIGH_PRESSURE",
+        "description": "High pressure protection activated",
+        "severity": "critical",
+    }
+
+    client.snapshot_callback(
+        make_snapshot("arctic-001", revision=3, operation="heating")
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get(fault).state == "ok"
+    assert len(events) == 2
+    assert events[1].data["active"] is False
+    assert events[1].data["code"] is None
+
+
+async def test_unknown_fault_code_maps_to_unknown_state(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    fault = entity_id(hass, SENSOR_DOMAIN, "arctic-001_fault_code")
+
+    client.snapshot_callback(
+        make_snapshot(
+            "arctic-001",
+            revision=2,
+            error={
+                "active": True,
+                "code": "ZZ9",
+                "description": "Unmapped fault",
+            },
+        )
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get(fault).state == "unknown"

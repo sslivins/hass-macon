@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pymacon import StateSnapshot
 
+from .const import FAULT_CODES, FAULT_STATE_OK, FAULT_STATE_UNKNOWN
 from .entity import MaconEntity
 from .runtime import MaconRuntime
 
@@ -29,6 +30,18 @@ from .runtime import MaconRuntime
 @dataclass(frozen=True, kw_only=True)
 class MaconSensorDescription(SensorEntityDescription):
     value_fn: Callable[[StateSnapshot], str | int | float | None]
+    attributes_fn: (
+        Callable[[StateSnapshot], dict[str, str | None]] | None
+    ) = None
+
+
+def _fault_state(snapshot: StateSnapshot) -> str:
+    error = snapshot.state.error
+    if not error.active:
+        return FAULT_STATE_OK
+    if error.code and error.code in FAULT_CODES:
+        return error.code
+    return FAULT_STATE_UNKNOWN
 
 
 TEMPERATURES: tuple[MaconSensorDescription, ...] = (
@@ -169,11 +182,14 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         value_fn=lambda value: value.state.components.fan_level,
     ),
     MaconSensorDescription(
-        key="error_description",
-        name="Error description",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-        value_fn=lambda value: value.state.error.description,
+        key="fault_code",
+        name="Fault code",
+        device_class=SensorDeviceClass.ENUM,
+        options=[*FAULT_CODES, FAULT_STATE_UNKNOWN, FAULT_STATE_OK],
+        value_fn=_fault_state,
+        attributes_fn=lambda value: {
+            "description": value.state.error.description,
+        },
     ),
 )
 
@@ -248,3 +264,13 @@ class MaconSensor(MaconEntity, SensorEntity):
         if snapshot is None:
             return None
         return self.entity_description.value_fn(snapshot)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None] | None:
+        attributes_fn = self.entity_description.attributes_fn
+        if attributes_fn is None:
+            return None
+        snapshot = self.runtime.snapshot
+        if snapshot is None:
+            return None
+        return attributes_fn(snapshot)

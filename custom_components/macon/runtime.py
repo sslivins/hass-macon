@@ -16,7 +16,7 @@ from pymacon import (
     StateSnapshot,
 )
 
-from .const import DOMAIN
+from .const import DOMAIN, EVENT_MACON_FAULT
 
 
 class MaconRuntime:
@@ -38,6 +38,8 @@ class MaconRuntime:
         self._unsubscribe_status: Callable[[], None] | None = None
         self._unsubscribe_capabilities: Callable[[], None] | None = None
         self._reauth_started = False
+        self._last_fault_active: bool | None = None
+        self._last_fault_code: str | None = None
 
     @property
     def available(self) -> bool:
@@ -103,7 +105,38 @@ class MaconRuntime:
     @callback
     def _async_snapshot_received(self, snapshot: StateSnapshot) -> None:
         self.snapshot = snapshot
+        self._async_fire_fault_transitions(snapshot)
         self._async_notify_listeners()
+
+    @callback
+    def _async_fire_fault_transitions(
+        self, snapshot: StateSnapshot
+    ) -> None:
+        error = snapshot.state.error
+        if self._last_fault_active is None:
+            # Establish a baseline on the first snapshot without firing,
+            # so a fault already present at startup is not re-announced.
+            self._last_fault_active = error.active
+            self._last_fault_code = error.code
+            return
+        if (
+            error.active == self._last_fault_active
+            and error.code == self._last_fault_code
+        ):
+            return
+        self._last_fault_active = error.active
+        self._last_fault_code = error.code
+        self.hass.bus.async_fire(
+            EVENT_MACON_FAULT,
+            {
+                "device_id": self.entry.data["device_id"],
+                "active": error.active,
+                "code": error.code,
+                "name": error.name,
+                "description": error.description,
+                "severity": error.severity,
+            },
+        )
 
     @callback
     def _async_status_received(self, status: ClientStatus) -> None:
