@@ -1,8 +1,15 @@
 # Macon Heat Pump Controller
 
-Home Assistant integration for the **Macon Heat Pump Controller**. It pairs
-one local controller per config entry and exposes its reported state, exact
-working modes, temperatures, setpoints, diagnostics, and command controls.
+Home Assistant integration for the **Arctic Controller** — a custom,
+self-built controller for Macon heat pumps. It talks to the Arctic Controller
+hardware/firmware, **not** the OEM Macon controller, and is not affiliated
+with or endorsed by Macon. It pairs one local controller per config entry and
+exposes its reported state, exact working modes, temperatures, setpoints,
+diagnostics, and command controls.
+
+> **Compatibility:** This integration only works with the Arctic Controller
+> (the DIY/self-built controller). It does not support the stock OEM Macon
+> controller.
 
 The integration uses [`pymacon`](https://github.com/sslivins/pymacon) for
 pinned-TLS REST and WebSocket transport. Commands are not optimistic:
@@ -28,9 +35,9 @@ fingerprint. Multiple controllers are isolated from one another, and
 credential or certificate changes trigger reauthentication.
 
 The firmware's zeroconf service type (`_arctic._tcp.local.`), discovery
-property (`arctic-controller`), and `arctic-*` device IDs are retained as
-legacy wire-format identifiers. They are not claims that this integration
-supports every Macon product.
+property (`arctic-controller`), and `arctic-*` device IDs are the Arctic
+Controller's own wire-format identifiers. This integration targets the Arctic
+Controller only and makes no claim to support OEM Macon controllers.
 
 ## Development
 
@@ -43,7 +50,7 @@ pytest
 
 Home Assistant test dependencies are installed by the test extra. The test
 extra tracks the `pymacon` repository; the integration manifest pins the
-runtime dependency to `pymacon==0.1.0`.
+runtime dependency to `pymacon==0.2.1`.
 
 ## License
 
