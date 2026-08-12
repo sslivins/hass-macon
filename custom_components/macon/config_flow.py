@@ -28,6 +28,20 @@ from .const import (
 
 CONF_PAIRING_CODE = "pairing_code"
 
+DEVICE_NAME_PREFIX = "Macon Heat Pump Controller"
+
+
+def _friendly_name(device_id: str) -> str:
+    """Human-facing controller name shown in Home Assistant.
+
+    Matches the name rendered on the controller's pairing screen: the
+    ``Macon Heat Pump Controller`` prefix plus the uppercased last four
+    characters of the device id (e.g. ``Macon Heat Pump Controller E540``).
+    Using this for the zeroconf discovery title avoids surfacing the raw
+    device id (a full MAC-style wire identifier) in the discovered-device card.
+    """
+    return f"{DEVICE_NAME_PREFIX} {device_id[-4:].upper()}"
+
 
 class MaconConfigFlow(
     config_entries.ConfigFlow, domain=DOMAIN
@@ -81,7 +95,7 @@ class MaconConfigFlow(
         self._discovered_host = discovery_info.host
         self._discovered_port = discovery_info.port or DEFAULT_PORT
         self._discovered_device_id = device_id
-        self.context["title_placeholders"] = {"name": device_id}
+        self.context["title_placeholders"] = {"name": _friendly_name(device_id)}
         return await self.async_step_confirm()
 
     async def async_step_confirm(
@@ -170,7 +184,7 @@ class MaconConfigFlow(
         self._abort_if_unique_id_configured(
             updates=self._entry_data(user_input, pairing)
         )
-        title = f"Macon Heat Pump Controller {pairing.device_id[-4:].upper()}"
+        title = _friendly_name(pairing.device_id)
         return (
             self.async_create_entry(
                 title=title,
