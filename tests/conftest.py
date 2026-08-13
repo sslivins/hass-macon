@@ -26,6 +26,7 @@ def make_snapshot(
     mode: str = "floor_heating",
     operation: str = "heating",
     available: bool = True,
+    error: dict | None = None,
 ) -> StateSnapshot:
     """Build a representative controller snapshot."""
     return StateSnapshot.from_dict(
@@ -72,7 +73,9 @@ def make_snapshot(
                     "thermal_w": 4800,
                     "cop": 3.0,
                 },
-                "error": {
+                "error": error
+                if error is not None
+                else {
                     "active": False,
                     "description": None,
                 },
