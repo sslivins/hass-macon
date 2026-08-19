@@ -15,6 +15,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_component import async_update_entity
 from pymacon import (
     ClientStatus,
     MaconAuthenticationError,
@@ -415,12 +416,7 @@ async def test_update_entity_surfaces_available_release(
             }
         )
     )
-    await hass.services.async_call(
-        "homeassistant",
-        "update_entity",
-        {"entity_id": update},
-        blocking=True,
-    )
+    await async_update_entity(hass, update)
 
     state = hass.states.get(update)
     assert state.state == "on"
@@ -437,12 +433,7 @@ async def test_update_entity_failed_check_keeps_last_release(
     client.async_check_updates = AsyncMock(
         side_effect=MaconControllerError("github offline")
     )
-    await hass.services.async_call(
-        "homeassistant",
-        "update_entity",
-        {"entity_id": update},
-        blocking=True,
-    )
+    await async_update_entity(hass, update)
 
     # The entity stays available (connection is up) and keeps its state.
     assert hass.states.get(update).state == "off"
@@ -465,12 +456,7 @@ async def test_update_install_drives_progress_then_reboots(
             }
         )
     )
-    await hass.services.async_call(
-        "homeassistant",
-        "update_entity",
-        {"entity_id": update},
-        blocking=True,
-    )
+    await async_update_entity(hass, update)
 
     client.async_ota_status = AsyncMock(
         side_effect=[
@@ -512,12 +498,7 @@ async def test_update_install_failure_raises(
             }
         )
     )
-    await hass.services.async_call(
-        "homeassistant",
-        "update_entity",
-        {"entity_id": update},
-        blocking=True,
-    )
+    await async_update_entity(hass, update)
 
     client.async_ota_status = AsyncMock(
         return_value=OtaStatus.from_dict(
