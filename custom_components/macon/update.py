@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pymacon import (
+    MaconAuthenticationError,
     MaconCommandConflictError,
     MaconControllerError,
     OtaReleaseInfo,
@@ -67,6 +68,10 @@ class MaconFirmwareUpdate(MaconEntity, UpdateEntity):
     def __init__(self, runtime: MaconRuntime) -> None:
         super().__init__(runtime, "firmware_update")
         self._release: OtaReleaseInfo | None = None
+        # Type of the most recent check failure (None while checks succeed) so
+        # we can log a visible warning on first/changed failure and a recovery
+        # message once checks work again, without spamming every scan interval.
+        self._last_check_error: type[Exception] | None = None
 
     @property
     def installed_version(self) -> str | None:
@@ -108,10 +113,34 @@ class MaconFirmwareUpdate(MaconEntity, UpdateEntity):
             return
         try:
             self._release = await self.runtime.client.async_check_updates()
+        except MaconAuthenticationError as error:
+            # A rejected credential is a persistent misconfiguration (or a
+            # controller too old to accept the integration token on its OTA
+            # endpoints), not a transient blip -- surface it loudly with an
+            # actionable hint so it isn't silently mistaken for "up to date".
+            if self._last_check_error is not MaconAuthenticationError:
+                _LOGGER.warning(
+                    "Macon firmware update check was rejected (401): %s. The "
+                    "controller must be running firmware that accepts the "
+                    "integration token on its OTA endpoints; install the "
+                    "latest firmware once via the controller web UI, then "
+                    "future updates will be detected automatically",
+                    error,
+                )
+            self._last_check_error = MaconAuthenticationError
         except MaconControllerError as error:
-            # An update check failing (offline, GitHub hiccup) should not make
+            # A transient check failure (offline, GitHub hiccup) should not make
             # the whole entity unavailable; keep the last known release info.
-            _LOGGER.debug("Macon update check failed: %s", error)
+            # Warn on the first/changed failure, then quiet down to debug.
+            if self._last_check_error is not type(error):
+                _LOGGER.warning("Macon update check failed: %s", error)
+            else:
+                _LOGGER.debug("Macon update check still failing: %s", error)
+            self._last_check_error = type(error)
+        else:
+            if self._last_check_error is not None:
+                _LOGGER.info("Macon update check recovered")
+                self._last_check_error = None
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
