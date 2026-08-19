@@ -9,6 +9,8 @@ import pytest
 from pymacon import (
     ClientStatus,
     ControllerCapabilities,
+    OtaReleaseInfo,
+    OtaStatus,
     StateSnapshot,
 )
 
@@ -137,6 +139,23 @@ def mock_clients() -> Generator[dict[str, MagicMock]]:
         client.async_set_cooling_setpoint = AsyncMock()
         client.async_set_heating_setpoint = AsyncMock()
         client.async_set_hot_water_setpoint = AsyncMock()
+
+        client.async_check_updates = AsyncMock(
+            return_value=OtaReleaseInfo.from_dict(
+                {
+                    "update_available": False,
+                    "current_version": "1.2.3",
+                    "latest_version": "1.2.3",
+                    "download_ready": False,
+                }
+            )
+        )
+        client.async_ota_status = AsyncMock(
+            return_value=OtaStatus.from_dict(
+                {"state": "idle", "progress": 0}
+            )
+        )
+        client.async_start_update = AsyncMock()
 
         def subscribe(callback):
             client.snapshot_callback = callback

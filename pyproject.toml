@@ -21,7 +21,7 @@ tests = [
     "pytest-homeassistant-custom-component>=0.13.250",
     "ruff>=0.6.0",
     "mypy>=1.10.0",
-    "pymacon==0.2.2",
+    "pymacon==0.3.0",
 ]
 
 [project.urls]

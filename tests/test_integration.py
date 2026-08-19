@@ -9,16 +9,21 @@ import pytest
 from homeassistant.components.climate import DOMAIN as CLIMATE_DOMAIN
 from homeassistant.components.select import DOMAIN as SELECT_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.update import DOMAIN as UPDATE_DOMAIN
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_component import async_update_entity
 from pymacon import (
     ClientStatus,
     MaconAuthenticationError,
     MaconCertificateError,
     MaconConnectionError,
+    MaconControllerError,
+    OtaReleaseInfo,
+    OtaStatus,
 )
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -378,3 +383,138 @@ async def test_unknown_fault_code_maps_to_unknown_state(
     await hass.async_block_till_done()
 
     assert hass.states.get(fault).state == "unknown"
+
+
+async def test_update_entity_reports_up_to_date_by_default(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    update = entity_id(hass, UPDATE_DOMAIN, "arctic-001_firmware_update")
+
+    state = hass.states.get(update)
+    assert state.state == "off"
+    assert state.attributes["installed_version"] == "1.2.3"
+    assert state.attributes["latest_version"] == "1.2.3"
+    assert state.attributes["in_progress"] is False
+
+
+async def test_update_entity_surfaces_available_release(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    update = entity_id(hass, UPDATE_DOMAIN, "arctic-001_firmware_update")
+
+    client.async_check_updates = AsyncMock(
+        return_value=OtaReleaseInfo.from_dict(
+            {
+                "update_available": True,
+                "current_version": "1.2.3",
+                "latest_version": "1.3.0",
+                "download_ready": True,
+                "release_notes": "Fixes and improvements",
+            }
+        )
+    )
+    await async_update_entity(hass, update)
+
+    state = hass.states.get(update)
+    assert state.state == "on"
+    assert state.attributes["latest_version"] == "1.3.0"
+
+
+async def test_update_entity_failed_check_keeps_last_release(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    update = entity_id(hass, UPDATE_DOMAIN, "arctic-001_firmware_update")
+
+    client.async_check_updates = AsyncMock(
+        side_effect=MaconControllerError("github offline")
+    )
+    await async_update_entity(hass, update)
+
+    # The entity stays available (connection is up) and keeps its state.
+    assert hass.states.get(update).state == "off"
+
+
+async def test_update_install_drives_progress_then_reboots(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    update = entity_id(hass, UPDATE_DOMAIN, "arctic-001_firmware_update")
+
+    client.async_check_updates = AsyncMock(
+        return_value=OtaReleaseInfo.from_dict(
+            {
+                "update_available": True,
+                "current_version": "1.2.3",
+                "latest_version": "1.3.0",
+                "download_ready": True,
+            }
+        )
+    )
+    await async_update_entity(hass, update)
+
+    client.async_ota_status = AsyncMock(
+        side_effect=[
+            OtaStatus.from_dict({"state": "downloading", "progress": 40}),
+            OtaStatus.from_dict({"state": "verifying", "progress": 100}),
+            MaconControllerError("device rebooting"),
+        ]
+    )
+
+    with patch(
+        "custom_components.macon.update.asyncio.sleep",
+        AsyncMock(),
+    ):
+        await hass.services.async_call(
+            UPDATE_DOMAIN,
+            "install",
+            {"entity_id": update},
+            blocking=True,
+        )
+
+    client.async_start_update.assert_awaited_once()
+    assert hass.states.get(update).attributes["in_progress"] is False
+
+
+async def test_update_install_failure_raises(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    update = entity_id(hass, UPDATE_DOMAIN, "arctic-001_firmware_update")
+
+    client.async_check_updates = AsyncMock(
+        return_value=OtaReleaseInfo.from_dict(
+            {
+                "update_available": True,
+                "current_version": "1.2.3",
+                "latest_version": "1.3.0",
+                "download_ready": True,
+            }
+        )
+    )
+    await async_update_entity(hass, update)
+
+    client.async_ota_status = AsyncMock(
+        return_value=OtaStatus.from_dict(
+            {"state": "failed", "progress": 55, "error": "flash write error"}
+        )
+    )
+
+    with (
+        patch("custom_components.macon.update.asyncio.sleep", AsyncMock()),
+        pytest.raises(HomeAssistantError),
+    ):
+        await hass.services.async_call(
+            UPDATE_DOMAIN,
+            "install",
+            {"entity_id": update},
+            blocking=True,
+        )
+
+    assert hass.states.get(update).attributes["in_progress"] is False

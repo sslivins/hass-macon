@@ -14,6 +14,7 @@ PLATFORMS = [
     Platform.CLIMATE,
     Platform.SELECT,
     Platform.SENSOR,
+    Platform.UPDATE,
 ]
 
 EVENT_MACON_FAULT = "macon_fault"
