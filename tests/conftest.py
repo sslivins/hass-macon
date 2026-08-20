@@ -118,6 +118,10 @@ def make_capabilities(device_id: str) -> ControllerCapabilities:
                 "heating": {"min": 20, "max": 55},
                 "hot_water": {"min": 30, "max": 60},
             },
+            "network": {
+                "ip_address": "192.168.1.21",
+                "local_hostname": f"{device_id}.local",
+            },
         }
     )
 
