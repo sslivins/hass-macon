@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_component import async_update_entity
 from pymacon import (
@@ -77,6 +78,36 @@ def entity_id(
     )
     assert result is not None
     return result
+
+
+async def test_firmware_version_in_device_registry_updates_after_ota(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    """After an OTA the controller reports a new firmware_version in its
+    capabilities; the device-registry sw_version (Device Info card) must
+    follow instead of staying pinned to the value captured at setup."""
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+
+    device_registry = dr.async_get(hass)
+    device = device_registry.async_get_device(
+        identifiers={(DOMAIN, "arctic-001")}
+    )
+    assert device is not None
+    assert device.sw_version == "1.2.3"
+
+    client.capabilities = replace(
+        client.capabilities,
+        firmware_version="1.3.0",
+    )
+    client.capabilities_callback(client.capabilities)
+    await hass.async_block_till_done()
+
+    device = device_registry.async_get_device(
+        identifiers={(DOMAIN, "arctic-001")}
+    )
+    assert device is not None
+    assert device.sw_version == "1.3.0"
 
 
 async def test_two_entries_are_independent_and_push_updates_entities(

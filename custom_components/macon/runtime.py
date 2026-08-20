@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from pymacon import (
     ClientStatus,
@@ -163,7 +164,37 @@ class MaconRuntime:
     def _async_capabilities_received(
         self, capabilities: ControllerCapabilities
     ) -> None:
+        self._async_update_registered_device(capabilities)
         self._async_notify_listeners()
+
+    @callback
+    def _async_update_registered_device(
+        self, capabilities: ControllerCapabilities
+    ) -> None:
+        """Refresh device-registry identity from new capabilities.
+
+        Home Assistant only reads an entity's ``device_info`` when the device
+        is first registered; it is not re-read on subsequent state writes. So
+        after an OTA the controller reports a new ``firmware_version`` in its
+        capabilities, but the device registry (and the Device Info card) keeps
+        showing the old ``sw_version`` until the entry is reloaded. Push the
+        refreshed firmware version and model into the registry explicitly.
+        """
+        device_registry = dr.async_get(self.hass)
+        device = device_registry.async_get_device(
+            identifiers={(DOMAIN, self.entry.data["device_id"])}
+        )
+        if device is None:
+            return
+        changes: dict[str, str] = {}
+        sw_version = capabilities.firmware_version or None
+        if sw_version is not None and device.sw_version != sw_version:
+            changes["sw_version"] = sw_version
+        model = capabilities.model or None
+        if model is not None and device.model != model:
+            changes["model"] = model
+        if changes:
+            device_registry.async_update_device(device.id, **changes)
 
     @callback
     def _async_notify_listeners(self) -> None:
