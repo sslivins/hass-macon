@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.typing import UNDEFINED, UndefinedType
 from pymacon import (
     ClientStatus,
     ControllerCapabilities,
@@ -186,15 +187,18 @@ class MaconRuntime:
         )
         if device is None:
             return
-        changes: dict[str, str] = {}
-        sw_version = capabilities.firmware_version or None
-        if sw_version is not None and device.sw_version != sw_version:
-            changes["sw_version"] = sw_version
-        model = capabilities.model or None
-        if model is not None and device.model != model:
-            changes["model"] = model
-        if changes:
-            device_registry.async_update_device(device.id, **changes)
+        sw_version: str | UndefinedType = UNDEFINED
+        new_sw = capabilities.firmware_version or None
+        if new_sw is not None and device.sw_version != new_sw:
+            sw_version = new_sw
+        model: str | UndefinedType = UNDEFINED
+        new_model = capabilities.model or None
+        if new_model is not None and device.model != new_model:
+            model = new_model
+        if sw_version is not UNDEFINED or model is not UNDEFINED:
+            device_registry.async_update_device(
+                device.id, sw_version=sw_version, model=model
+            )
 
     @callback
     def _async_notify_listeners(self) -> None:
