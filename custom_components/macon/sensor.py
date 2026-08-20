@@ -20,7 +20,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pymacon import StateSnapshot
+from pymacon import ControllerCapabilities, StateSnapshot
 
 from .const import FAULT_CODES, FAULT_STATE_OK, FAULT_STATE_UNKNOWN
 from .entity import MaconEntity
@@ -33,6 +33,13 @@ class MaconSensorDescription(SensorEntityDescription):
     attributes_fn: (
         Callable[[StateSnapshot], dict[str, str | None]] | None
     ) = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class MaconInfoSensorDescription(SensorEntityDescription):
+    """A diagnostic sensor sourced from the controller capabilities document."""
+
+    value_fn: Callable[[ControllerCapabilities | None], str | None]
 
 
 def _fault_state(snapshot: StateSnapshot) -> str:
@@ -234,6 +241,21 @@ EXTRA_TEMPERATURES: tuple[MaconSensorDescription, ...] = tuple(
 
 DESCRIPTIONS = TEMPERATURES + SETPOINTS + DIAGNOSTICS + EXTRA_TEMPERATURES
 
+INFO_SENSORS: tuple[MaconInfoSensorDescription, ...] = (
+    MaconInfoSensorDescription(
+        key="ip_address",
+        name="IP address",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda caps: caps.ip_address if caps else None,
+    ),
+    MaconInfoSensorDescription(
+        key="hostname",
+        name="Hostname",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda caps: caps.local_hostname if caps else None,
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -241,10 +263,14 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     runtime: MaconRuntime = entry.runtime_data
-    async_add_entities(
-        MaconSensor(runtime, description)
-        for description in DESCRIPTIONS
+    entities: list[SensorEntity] = [
+        MaconSensor(runtime, description) for description in DESCRIPTIONS
+    ]
+    entities.extend(
+        MaconInfoSensor(runtime, description)
+        for description in INFO_SENSORS
     )
+    async_add_entities(entities)
 
 
 class MaconSensor(MaconEntity, SensorEntity):
@@ -274,3 +300,29 @@ class MaconSensor(MaconEntity, SensorEntity):
         if snapshot is None:
             return None
         return attributes_fn(snapshot)
+
+
+class MaconInfoSensor(MaconEntity, SensorEntity):
+    """Diagnostic sensor sourced from the controller capabilities document."""
+
+    entity_description: MaconInfoSensorDescription
+
+    def __init__(
+        self,
+        runtime: MaconRuntime,
+        description: MaconInfoSensorDescription,
+    ) -> None:
+        super().__init__(runtime, description.key)
+        self.entity_description = description
+
+    @property
+    def available(self) -> bool:
+        # Network identity comes from capabilities, which are cached across
+        # brief stream drops, so keep it visible whenever it is known.
+        return self.runtime.client.capabilities is not None
+
+    @property
+    def native_value(self) -> str | None:
+        return self.entity_description.value_fn(
+            self.runtime.client.capabilities
+        )

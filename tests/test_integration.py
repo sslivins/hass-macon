@@ -112,6 +112,18 @@ async def test_two_entries_are_independent_and_push_updates_entities(
     assert first.runtime_data is not second.runtime_data
 
 
+async def test_network_diagnostic_sensors_expose_ip_and_hostname(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+
+    ip_sensor = entity_id(hass, SENSOR_DOMAIN, "arctic-001_ip_address")
+    hostname_sensor = entity_id(hass, SENSOR_DOMAIN, "arctic-001_hostname")
+
+    assert hass.states.get(ip_sensor).state == "192.168.1.21"
+    assert hass.states.get(hostname_sensor).state == "arctic-001.local"
+
+
 async def test_availability_and_unload_cleanup(
     hass: HomeAssistant, mock_clients: dict[str, MagicMock]
 ) -> None:
