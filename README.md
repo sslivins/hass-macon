@@ -68,6 +68,63 @@ data:
 When a fault clears, `active` is `false` and `code` is `null`. Use the event in
 automations to send a notification with the exact code and description.
 
+## Heat pump dashboard card
+
+The integration ships a custom Lovelace card that draws the unit as a live
+refrigerant loop: compressor, 4-way reversing valve, EEV, the outdoor coil, and
+the plate heat exchanger where the water side meets the refrigerant.
+
+![Macon heat pump card](docs/images/card-heating.png)
+
+The loop re-routes and recolours itself as the unit changes mode:
+
+| Defrost | Cooling |
+| --- | --- |
+| ![Defrost](docs/images/card-defrost.png) | ![Cooling](docs/images/card-cooling.png) |
+
+The card registers itself — there is **no** resource to add under
+*Settings → Dashboards → Resources*. Restart Home Assistant after upgrading,
+then add it to a dashboard:
+
+```yaml
+type: custom:macon-heat-pump-card
+title: Heat pump
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `title` | `Heat pump` | Card heading. Useful when you run more than one unit. |
+| `device_id` | auto | Controller device id to bind to. Auto-detected when a single controller is configured. |
+| `demo` | `false` | Render synthetic data cycling heating → defrost → cooling. Handy for previewing the card without a running unit. |
+
+What it shows:
+
+- **Flow direction and refrigerant state.** Pipe segments are coloured by
+  thermodynamic state — hot gas, liquid, two-phase, and suction — and recolour
+  themselves when the reversing valve flips, so heating, cooling, and defrost
+  are visually distinct. Flow animates only while the compressor is running.
+- **Component status.** The fan spins, the water pump and compressor highlight
+  when energised, and a frost overlay appears on the outdoor coil during
+  defrost.
+- **Live temperatures** at each point in the circuit, plus power input, thermal
+  output, COP, and the water-side ΔT across the heat exchanger.
+- Clicking any value opens the underlying entity's more-info dialog.
+
+### A note on the superheat figure
+
+Superheat is shown as `SH ~` — the tilde is deliberate. True superheat is
+suction temperature minus the *saturated* evaporating temperature, which is
+derived from suction pressure. The Arctic controller has no pressure
+transducer (only high/low pressure protection switches), so the card uses the
+standard coil-thermistor approximation instead: suction temperature minus the
+evaporating coil temperature, selecting the outdoor coil in heating and the
+plate heat exchanger in cooling and defrost. It is suppressed entirely while
+the compressor is stopped, where the value would be meaningless.
+
+Treat it as a **trend indicator, not a calibrated measurement** — accuracy
+depends on where the coil thermistor is physically mounted. A value that drifts
+steadily over weeks is still a genuine signal.
+
 ## Development
 
 ```powershell
