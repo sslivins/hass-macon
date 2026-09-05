@@ -19,6 +19,13 @@ PLATFORMS = [
 
 EVENT_MACON_FAULT = "macon_fault"
 
+# Bundled Lovelace card. The version is appended to the resource URL as a cache
+# buster, so it must be bumped in lockstep with CARD_VERSION inside
+# www/macon-heat-pump-card.js whenever the card changes.
+CARD_FILENAME = "macon-heat-pump-card.js"
+CARD_URL_BASE = f"/{DOMAIN}_frontend"
+CARD_VERSION = "0.2.0"
+
 FAULT_STATE_OK = "ok"
 FAULT_STATE_UNKNOWN = "unknown"
 
