@@ -14,7 +14,7 @@
  *   demo: true                     # optional, synthetic animated data
  */
 
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.2.1";
 
 /* Macon brand mark, inlined from custom_components/macon/brand/icon.png so the
  * card renders correctly no matter how it is served. */
@@ -50,6 +50,25 @@ const SENSOR_KEYS = {
   cop: "coefficient_of_performance",
   faultCode: "fault_code",
 };
+
+const TEXT_KEYS = new Set(["operation", "mode", "faultCode"]);
+
+// Sensor keys whose values are temperatures and therefore need unit
+// normalisation. Everything else (Hz, rpm, W, COP) is unit-agnostic.
+const TEMP_KEYS = new Set([
+  "tank",
+  "inlet",
+  "outlet",
+  "outdoor",
+  "discharge",
+  "suction",
+  "outdoorCoil",
+  "indoorCoil",
+  "ipm",
+  "heatingSetpoint",
+  "coolingSetpoint",
+  "hotWaterSetpoint",
+]);
 
 const BINARY_KEYS = {
   connected: "heat_pump_connected",
@@ -99,6 +118,20 @@ function num(hass, entityId) {
   if (!st) return null;
   const v = Number(st.state);
   return Number.isFinite(v) ? v : null;
+}
+
+// Entity states arrive already converted to the user's display unit, so a
+// temperature may be delivered in F. All internal maths (colour ramp,
+// superheat, water delta-T) is defined in C, so normalise on read and convert
+// back only when formatting. The per-entity unit attribute is used rather than
+// the global unit system because a single entity can be overridden in its
+// settings.
+function numTemp(hass, entityId) {
+  const v = num(hass, entityId);
+  if (v === null) return null;
+  const st = hass.states[entityId];
+  const unit = (st && st.attributes && st.attributes.unit_of_measurement) || "";
+  return unit.includes("F") ? ((v - 32) * 5) / 9 : v;
 }
 
 function str(hass, entityId) {
@@ -335,9 +368,10 @@ class MaconHeatPumpCard extends HTMLElement {
     const values = {};
     for (const key of Object.keys(SENSOR_KEYS)) {
       const id = e[key];
-      values[key] =
-        key === "operation" || key === "mode" || key === "faultCode"
-          ? str(hass, id)
+      values[key] = TEXT_KEYS.has(key)
+        ? str(hass, id)
+        : TEMP_KEYS.has(key)
+          ? numTemp(hass, id)
           : num(hass, id);
     }
     const flags = {};
@@ -347,7 +381,6 @@ class MaconHeatPumpCard extends HTMLElement {
   }
 
   _tempUnit() {
-    if (this._config.demo) return "C";
     const sys = this._hass && this._hass.config && this._hass.config.unit_system;
     return sys && sys.temperature && sys.temperature.includes("F") ? "F" : "C";
   }
