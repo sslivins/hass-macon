@@ -14,6 +14,8 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     EntityCategory,
+    UnitOfElectricCurrent,
+    UnitOfElectricPotential,
     UnitOfFrequency,
     UnitOfPower,
     UnitOfTemperature,
@@ -159,6 +161,56 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda value: value.state.readings.fan_rpm,
+    ),
+    # Expansion valve position, in raw steps.
+    #
+    # The controller sends null (not 0) when the register has not been read,
+    # because 0 steps means the valve is fully CLOSED, a real and alarming
+    # state. value_fn passes None straight through so the entity reports
+    # `unknown` instead of a fabricated 0.
+    #
+    # No device_class: Home Assistant has no valve-position/step class. No
+    # percentage either, because the mainboard publishes no full-scale step
+    # count, so a percentage could only ever be a guess.
+    #
+    # The `name` slug is a contract with macon-heat-pump-card, which resolves
+    # entities with entityId.endsWith("_" + suffix). This must keep producing
+    # sensor.<device>_expansion_valve_position.
+    MaconSensorDescription(
+        key="expansion_valve_position",
+        name="Expansion valve position",
+        native_unit_of_measurement="steps",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda value: value.state.readings.primary_eev,
+    ),
+    # Electrical readings follow the same null-means-unknown rule.
+    MaconSensorDescription(
+        key="ac_voltage",
+        name="AC voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda value: value.state.readings.ac_voltage,
+    ),
+    MaconSensorDescription(
+        key="ac_current",
+        name="AC current",
+        device_class=SensorDeviceClass.CURRENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda value: value.state.readings.ac_current,
+    ),
+    MaconSensorDescription(
+        key="dc_voltage",
+        name="DC bus voltage",
+        device_class=SensorDeviceClass.VOLTAGE,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda value: value.state.readings.dc_voltage,
     ),
     MaconSensorDescription(
         key="power",
