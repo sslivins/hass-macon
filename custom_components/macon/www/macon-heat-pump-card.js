@@ -14,7 +14,7 @@
  *   demo: true                     # optional, synthetic animated data
  */
 
-const CARD_VERSION = "0.2.2";
+const CARD_VERSION = "0.2.3";
 
 /* Macon brand mark, inlined from custom_components/macon/brand/icon.png so the
  * card renders correctly no matter how it is served. */
@@ -1010,15 +1010,38 @@ const STYLES = `
 `;
 
 
-customElements.define("macon-heat-pump-card", MaconHeatPumpCard);
+// Home Assistant swaps window.customElements for a scoped-registry shim while
+// the frontend boots. This module is injected via extra_module_url so it runs
+// first: our definition lands on the native registry and the shim never sees
+// it, making every card fail with "Custom element doesn't exist". Re-register
+// against whatever registry is current until the frontend has settled.
+const CARD_TAG = "macon-heat-pump-card";
+let definedRegistry = null;
+
+function defineMaconCard() {
+  const registry = window.customElements;
+  if (!registry || definedRegistry === registry) return;
+  definedRegistry = registry;
+  try {
+    if (!registry.get(CARD_TAG)) registry.define(CARD_TAG, MaconHeatPumpCard);
+  } catch (err) {
+    // Another copy of the card already claimed the tag on this registry.
+  }
+}
+
+defineMaconCard();
+const maconDefineTimer = setInterval(defineMaconCard, 200);
+setTimeout(() => clearInterval(maconDefineTimer), 60000);
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "macon-heat-pump-card",
-  name: "Macon Heat Pump",
-  description: "Live vapour-compression circuit diagram for a Macon heat pump controller.",
-  preview: true,
-});
+if (!window.customCards.some((c) => c.type === CARD_TAG)) {
+  window.customCards.push({
+    type: "macon-heat-pump-card",
+    name: "Macon Heat Pump",
+    description: "Live vapour-compression circuit diagram for a Macon heat pump controller.",
+    preview: true,
+  });
+}
 
 console.info(
   `%c MACON-HEAT-PUMP-CARD %c ${CARD_VERSION} `,
