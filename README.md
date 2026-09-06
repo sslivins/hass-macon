@@ -45,12 +45,20 @@ Controller only and makes no claim to support OEM Macon controllers.
 
 Alongside the climate control and the operational sensors (tank/outlet/inlet
 temperatures, setpoints, power, COP, and — as diagnostic entities — compressor
-frequency, fan speed/level, and the refrigerant-circuit temperatures), the
+frequency, fan speed/level, expansion valve position, AC voltage/current, DC bus
+voltage, and the refrigerant-circuit temperatures), the
 integration exposes a **Fault code** sensor. Its state is the stable Arctic
 Controller fault code (for example `P02`) of the highest-severity active fault,
 `ok` when the unit is healthy, or `unknown` for an unrecognised code. The
 human-readable text is available on the sensor's `description` attribute, and
 Home Assistant's own History/Logbook provides the fault timeline.
+
+**Expansion valve position** is reported in raw steps, as the mainboard
+publishes no full-scale step count and therefore no meaningful percentage. It,
+along with the electrical readings, reports `unknown` rather than `0` when the
+controller has not read the register — for the valve, `0` steps is a real state
+meaning fully closed. Reading these requires controller firmware new enough to
+publish them; older firmware simply leaves the entities `unknown`.
 
 A `macon_fault` event is fired whenever a fault begins, clears, or changes:
 
