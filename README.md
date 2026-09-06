@@ -116,6 +116,10 @@ What it shows:
   defrost.
 - **Live temperatures** at each point in the circuit, plus power input, thermal
   output, COP, and the water-side ΔT across the heat exchanger.
+- **Expansion valve position**, in valve steps. The controller does not publish
+  the valve's full-scale step count, so this is deliberately shown as a raw step
+  count rather than a percentage or a fill gauge — there is no honest way to
+  scale it without knowing the maximum.
 - Clicking any value opens the underlying entity's more-info dialog.
 
 ### A note on the superheat figure
