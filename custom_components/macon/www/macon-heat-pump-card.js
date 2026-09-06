@@ -14,7 +14,7 @@
  *   demo: true                     # optional, synthetic animated data
  */
 
-const CARD_VERSION = "0.2.3";
+const CARD_VERSION = "0.2.4";
 
 /* Macon brand mark, inlined from custom_components/macon/brand/icon.png so the
  * card renders correctly no matter how it is served. */
@@ -402,7 +402,7 @@ class MaconHeatPumpCard extends HTMLElement {
             <span class="uom-hdr" id="uom">\u00b0C</span>
           </div>
           <div class="badges" id="badges"></div>
-          <span class="chip" id="mode-chip"></span>
+          <span class="chip" id="mode-chip" data-entity-key="operation"></span>
         </div>
         <div class="offline" id="offline">Waiting for controller data...</div>
         <div class="body">
@@ -418,19 +418,20 @@ class MaconHeatPumpCard extends HTMLElement {
       </ha-card>`;
     this._built = true;
 
-    this.querySelectorAll("[data-entity-key]").forEach((el) => {
-      el.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        const entityId = (this._entities || {})[el.getAttribute("data-entity-key")];
-        if (!entityId) return;
-        this.dispatchEvent(
-          new CustomEvent("hass-more-info", {
-            detail: { entityId },
-            bubbles: true,
-            composed: true,
-          })
-        );
-      });
+    // Delegated so elements rendered later (stats, badges) are clickable too.
+    this.addEventListener("click", (ev) => {
+      const target = ev.target.closest && ev.target.closest("[data-entity-key]");
+      if (!target || !this.contains(target)) return;
+      const entityId = (this._entities || {})[target.getAttribute("data-entity-key")];
+      if (!entityId) return;
+      ev.stopPropagation();
+      this.dispatchEvent(
+        new CustomEvent("hass-more-info", {
+          detail: { entityId },
+          bubbles: true,
+          composed: true,
+        })
+      );
     });
   }
 
@@ -534,15 +535,15 @@ class MaconHeatPumpCard extends HTMLElement {
     // Badges for genuine exceptions only; the chip carries normal state.
     const badges = [];
     if (live) {
-      if (f.fault) badges.push(["fault", "mdi:alert", titleCase(v.faultCode || "fault")]);
-      if (f.backupHeater) badges.push(["aux", "mdi:radiator", "Backup heat"]);
-      if (f.connected === false) badges.push(["fault", "mdi:lan-disconnect", "Pump offline"]);
-      if (f.unitOn === false) badges.push(["idle", "mdi:power-standby", "Off"]);
+      if (f.fault) badges.push(["fault", "mdi:alert", titleCase(v.faultCode || "fault"), "faultCode"]);
+      if (f.backupHeater) badges.push(["aux", "mdi:radiator", "Backup heat", "backupHeater"]);
+      if (f.connected === false) badges.push(["fault", "mdi:lan-disconnect", "Pump offline", "connected"]);
+      if (f.unitOn === false) badges.push(["idle", "mdi:power-standby", "Off", "unitOn"]);
     }
     const badgeHtml = badges
       .map(
-        ([cls, icon, label]) =>
-          `<span class="badge ${cls}"><ha-icon icon="${icon}"></ha-icon>${label}</span>`
+        ([cls, icon, label, key]) =>
+          `<span class="badge ${cls}" data-entity-key="${key}"><ha-icon icon="${icon}"></ha-icon>${label}</span>`
       )
       .join("");
     const badgeEl = this.querySelector("#badges");
@@ -611,7 +612,9 @@ const SCHEMATIC = `
       <path d="M0,-21 C9,-10 9,-3 0,0 C-9,-3 -9,-10 0,-21Z" class="blade" transform="rotate(120)"/>
       <path d="M0,-21 C9,-10 9,-3 0,0 C-9,-3 -9,-10 0,-21Z" class="blade" transform="rotate(240)"/>
     </g>
-    <text y="41" class="lbl" text-anchor="middle" id="c-fan">-- rpm</text>
+    <g data-entity-key="fanRpm" class="hit">
+      <text y="41" class="lbl" text-anchor="middle" id="c-fan">-- rpm</text>
+    </g>
   </g>
 
   <g data-entity-key="outdoor" class="hit">
@@ -642,7 +645,9 @@ const SCHEMATIC = `
     <text x="209" y="120" class="lbl" text-anchor="end">Suction</text>
     <text id="t-suction" x="209" y="136" class="val sm" text-anchor="end">--</text>
   </g>
-  <text id="t-sh" x="209" y="154" class="delta" text-anchor="end">SH ~ --</text>
+  <g data-entity-key="suction" class="hit">
+    <text id="t-sh" x="209" y="154" class="delta" text-anchor="end">SH ~ --</text>
+  </g>
 
   <!-- ============ compressor ============ -->
   <g data-entity-key="frequency" class="hit">
@@ -676,7 +681,9 @@ const SCHEMATIC = `
     <text x="478" y="294" class="lbl">Inlet</text>
     <text id="t-inlet" x="620" y="294" class="val sm" text-anchor="end">--</text>
   </g>
-  <text id="t-delta" x="600" y="316" class="delta" text-anchor="middle">\u0394T --</text>
+  <g data-entity-key="outlet" class="hit">
+    <text id="t-delta" x="600" y="316" class="delta" text-anchor="middle">\u0394T --</text>
+  </g>
 
   <g data-entity-key="tank" class="hit">
     <rect x="540" y="150" width="92" height="50" rx="6" class="unitbox"/>
@@ -921,6 +928,12 @@ const STYLES = `
 
   macon-heat-pump-card .hit { cursor: pointer; }
   macon-heat-pump-card .hit:hover .val { text-decoration: underline; }
+  macon-heat-pump-card .hit:hover .lbl,
+  macon-heat-pump-card .hit:hover .delta { text-decoration: underline; }
+  macon-heat-pump-card .stat[data-entity-key],
+  macon-heat-pump-card .badge[data-entity-key],
+  macon-heat-pump-card .chip[data-entity-key] { cursor: pointer; }
+  macon-heat-pump-card .stat[data-entity-key]:hover .v { text-decoration: underline; }
 
   /* ---- animated flow ---- */
   macon-heat-pump-card .pipe-flow {
