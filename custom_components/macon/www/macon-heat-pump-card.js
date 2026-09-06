@@ -14,7 +14,7 @@
  *   demo: true                     # optional, synthetic animated data
  */
 
-const CARD_VERSION = "0.2.4";
+const CARD_VERSION = "0.2.5";
 
 /* Macon brand mark, inlined from custom_components/macon/brand/icon.png so the
  * card renders correctly no matter how it is served. */
@@ -549,18 +549,21 @@ class MaconHeatPumpCard extends HTMLElement {
     const badgeEl = this.querySelector("#badges");
     if (badgeEl.innerHTML !== badgeHtml) badgeEl.innerHTML = badgeHtml;
 
+    // Water dT and superheat are derived from other readings, so they have no
+    // entity of their own and are deliberately not clickable.
     const stats = [
       ["Power in", fmtPower(v.power), "power"],
       ["Heat out", fmtPower(v.thermal), "thermal"],
       ["COP", v.cop === null ? "--" : v.cop.toFixed(2), "cop"],
-      ["Water \u0394T", fmtDelta(dt, unit), "outlet"],
-      ["Superheat", sh === null ? "--" : `~${fmtDelta(sh, unit)}`, "suction"],
+      ["Water \u0394T", fmtDelta(dt, unit), null],
+      ["Superheat", sh === null ? "--" : `~${fmtDelta(sh, unit)}`, null],
       ["IPM", fmtTemp(v.ipm, unit), "ipm"],
     ];
     const statHtml = stats
       .map(
         ([label, value, key]) =>
-          `<div class="stat" data-entity-key="${key}"><span class="k">${label}</span><span class="v">${value}</span></div>`
+          `<div class="stat"${key ? ` data-entity-key="${key}"` : ""}>` +
+          `<span class="k">${label}</span><span class="v">${value}</span></div>`
       )
       .join("");
     const statEl = this.querySelector("#stats");
@@ -645,9 +648,7 @@ const SCHEMATIC = `
     <text x="209" y="120" class="lbl" text-anchor="end">Suction</text>
     <text id="t-suction" x="209" y="136" class="val sm" text-anchor="end">--</text>
   </g>
-  <g data-entity-key="suction" class="hit">
-    <text id="t-sh" x="209" y="154" class="delta" text-anchor="end">SH ~ --</text>
-  </g>
+  <text id="t-sh" x="209" y="154" class="delta" text-anchor="end">SH ~ --</text>
 
   <!-- ============ compressor ============ -->
   <g data-entity-key="frequency" class="hit">
@@ -681,9 +682,7 @@ const SCHEMATIC = `
     <text x="478" y="294" class="lbl">Inlet</text>
     <text id="t-inlet" x="620" y="294" class="val sm" text-anchor="end">--</text>
   </g>
-  <g data-entity-key="outlet" class="hit">
-    <text id="t-delta" x="600" y="316" class="delta" text-anchor="middle">\u0394T --</text>
-  </g>
+  <text id="t-delta" x="600" y="316" class="delta" text-anchor="middle">\u0394T --</text>
 
   <g data-entity-key="tank" class="hit">
     <rect x="540" y="150" width="92" height="50" rx="6" class="unitbox"/>
@@ -928,8 +927,7 @@ const STYLES = `
 
   macon-heat-pump-card .hit { cursor: pointer; }
   macon-heat-pump-card .hit:hover .val { text-decoration: underline; }
-  macon-heat-pump-card .hit:hover .lbl,
-  macon-heat-pump-card .hit:hover .delta { text-decoration: underline; }
+  macon-heat-pump-card .hit:hover .lbl { text-decoration: underline; }
   macon-heat-pump-card .stat[data-entity-key],
   macon-heat-pump-card .badge[data-entity-key],
   macon-heat-pump-card .chip[data-entity-key] { cursor: pointer; }
