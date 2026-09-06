@@ -14,7 +14,7 @@
  *   demo: true                     # optional, synthetic animated data
  */
 
-const CARD_VERSION = "0.2.1";
+const CARD_VERSION = "0.2.2";
 
 /* Macon brand mark, inlined from custom_components/macon/brand/icon.png so the
  * card renders correctly no matter how it is served. */
@@ -48,6 +48,7 @@ const SENSOR_KEYS = {
   power: "power",
   thermal: "thermal_output",
   cop: "coefficient_of_performance",
+  eev: "expansion_valve_position",
   faultCode: "fault_code",
 };
 
@@ -276,6 +277,9 @@ function demoState(tick) {
       power: defrosting ? w(20, 1400, 1800) : w(35, 900, 1450),
       thermal: defrosting ? 0 : w(35, 3600, 5400),
       cop: defrosting ? 0 : w(35, 3.6, 4.6),
+      // Valve opens wide during defrost to flood the outdoor coil, and modulates
+      // around a narrower band in steady-state operation.
+      eev: defrosting ? w(20, 400, 460) : w(40, 180, 280),
       operation: defrosting ? "defrost" : cooling ? "cooling" : "heating",
       mode: cooling ? "cooling" : "heating",
       faultCode: "ok",
@@ -476,6 +480,10 @@ class MaconHeatPumpCard extends HTMLElement {
 
     this._setText("c-freq", v.frequency === null ? "-- Hz" : `${v.frequency.toFixed(0)} Hz`);
     this._setText("c-fan", v.fanRpm === null ? "-- rpm" : `${v.fanRpm.toFixed(0)} rpm`);
+    // Reported in valve steps. The controller does not publish the valve's
+    // full-scale step count, so this cannot honestly be shown as a percentage
+    // or a fill level - the raw step count is all we can stand behind.
+    this._setText("c-eev", v.eev === null ? "--" : `${v.eev.toFixed(0)} steps`);
 
     // Water-side delta across the plate heat exchanger.
     const dt = v.inlet !== null && v.outlet !== null ? v.outlet - v.inlet : null;
@@ -645,9 +653,10 @@ const SCHEMATIC = `
   </g>
 
   <!-- ============ EEV ============ -->
-  <g>
+  <g data-entity-key="eev" class="hit">
     <path d="M245,288 L257,300 L245,312 L233,300 Z" class="eev"/>
     <text x="245" y="328" class="lbl" text-anchor="middle">EEV</text>
+    <text x="245" y="342" class="val sm" text-anchor="middle" id="c-eev">--</text>
   </g>
 
   <!-- ============ plate heat exchanger ============ -->
