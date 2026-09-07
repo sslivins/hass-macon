@@ -152,8 +152,9 @@ runtime dependency to `pymacon==0.2.2`.
 
 ### Continuous integration
 
-`main` is protected: a pull request must pass **unit-tests** and
-**Hassfest** before it can merge, and the branch must be up to date with
+`main` is protected: a pull request must pass **unit-tests**, **Hassfest**
+and **HACS validation** before it can merge, and the branch must be up to
+date with
 `main`. Arming auto-merge is still fine -- protection simply holds the
 merge until the checks report.
 
@@ -162,7 +163,8 @@ to fail on *every* pull request while succeeding on every push to `main`.
 With no required checks, auto-merge landed a PR seconds after it opened
 and `--delete-branch` removed the head ref before `hacs/action` resolved
 it, so the action reported `Repository ... not loaded properly in HACS /
-Not Found`. The head branch now survives until the checks finish.
+Not Found`. The head branch now survives until the checks finish, and
+`HACS validation` passes on pull requests (verified on PR #24).
 
 ## License
 
