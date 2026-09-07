@@ -150,6 +150,20 @@ Home Assistant test dependencies are installed by the test extra. The test
 extra tracks the `pymacon` repository; the integration manifest pins the
 runtime dependency to `pymacon==0.2.2`.
 
+### Continuous integration
+
+`main` is protected: a pull request must pass **unit-tests** and
+**Hassfest** before it can merge, and the branch must be up to date with
+`main`. Arming auto-merge is still fine -- protection simply holds the
+merge until the checks report.
+
+The gating also removes a systemic false failure. `HACS validation` used
+to fail on *every* pull request while succeeding on every push to `main`.
+With no required checks, auto-merge landed a PR seconds after it opened
+and `--delete-branch` removed the head ref before `hacs/action` resolved
+it, so the action reported `Repository ... not loaded properly in HACS /
+Not Found`. The head branch now survives until the checks finish.
+
 ## License
 
 [MIT](LICENSE) © [sslivins](https://github.com/sslivins)
