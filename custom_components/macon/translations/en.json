@@ -42,5 +42,19 @@
       "reauth_failed": "The config entry no longer exists",
       "reauth_successful": "Reauthentication succeeded"
     }
+  },
+  "entity": {
+    "select": {
+      "mode": {
+        "name": "Selected mode",
+        "state": {
+          "cooling": "Cooling",
+          "floor_heating": "Floor heating",
+          "fan_coil_heating": "Fan-coil heating",
+          "hot_water": "Hot water",
+          "auto": "Auto"
+        }
+      }
+    }
   }
 }
