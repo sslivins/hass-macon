@@ -24,6 +24,7 @@ class MaconModeSelect(MaconEntity, SelectEntity):
     """Expose the exact server-advertised Macon mode allowlist."""
 
     _attr_name = "Selected mode"
+    _attr_translation_key = "mode"
 
     def __init__(self, runtime: MaconRuntime) -> None:
         super().__init__(runtime, "mode")
