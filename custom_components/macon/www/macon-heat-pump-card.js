@@ -14,7 +14,7 @@
  *   demo: true                     # optional, synthetic animated data
  */
 
-const CARD_VERSION = "0.2.5";
+const CARD_VERSION = "0.2.6";
 
 /* Macon brand mark, inlined from custom_components/macon/brand/icon.png so the
  * card renders correctly no matter how it is served. */
@@ -101,10 +101,13 @@ function resolveEntities(hass, deviceId) {
   return map;
 }
 
+// Each controller is two HA devices (controller + heat pump); only the heat
+// pump has a climate entity, so key auto-detection off that.
 function findMaconDevices(hass) {
   const seen = new Set();
-  for (const entry of Object.values(hass.entities || {})) {
-    if (entry.platform === "macon" && entry.device_id) seen.add(entry.device_id);
+  for (const [entityId, entry] of Object.entries(hass.entities || {})) {
+    if (entry.platform !== "macon" || !entry.device_id) continue;
+    if (entityId.startsWith("climate.")) seen.add(entry.device_id);
   }
   return [...seen];
 }

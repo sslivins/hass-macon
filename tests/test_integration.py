@@ -278,8 +278,15 @@ async def test_diagnostics_redact_connection_secrets(
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
     rendered = repr(diagnostics)
 
-    assert diagnostics["entry"]["device_id"] == "arctic-001"
+    assert diagnostics["entry"]["device_id"] == "**REDACTED**"
+    assert diagnostics["controller_diagnostics"]["ok"] is True
+    assert (
+        diagnostics["controller_diagnostics"]["data"]["brownout_count"] == 2
+    )
+    assert "arctic-001" not in rendered
     assert "controller.local" not in rendered
+    assert "192.168.1.21" not in rendered
+    assert "secret-home-network" not in rendered
     assert TOKEN not in rendered
     assert FINGERPRINT not in rendered
 

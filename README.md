@@ -78,6 +78,41 @@ data:
 When a fault clears, `active` is `false` and `code` is `null`. Use the event in
 automations to send a notification with the exact code and description.
 
+## Controller health
+
+Each paired controller appears as two linked devices: the **Macon heat pump**
+(climate, temperatures, setpoints, faults — everything above) and the **Arctic
+controller** that drives it over RS485 (firmware update, IP address, hostname,
+and controller health). Upgrading from a release before 0.8.0 keeps your
+existing device as the heat pump, including its area and entity ids; the
+controller device is added alongside it.
+
+Controller health is polled every 60 seconds from firmware that supports it
+(older firmware just leaves these entities unavailable, without affecting the
+heat pump). Enabled by default:
+
+| Entity | Meaning |
+| --- | --- |
+| Last boot | When the controller last started |
+| Last reset reason | Why it restarted (`power_on`, `brownout`, `panic`, `task_wdt`, …) |
+| Brownout count, Crash count, Watchdog reset count | Lifetime totals, kept across reboots |
+| Safe mode | On when repeated crashes put the firmware in safe mode |
+| RS485 role | `master`, `listener`, `blocked` (another master is on the bus), `demo`, `inactive` |
+| RS485 problem | On when the heat pump stops answering polls, or another master blocks the bus |
+| Last RS485 response, RS485 consecutive failures | Link health at a glance |
+| Wi-Fi disconnects | Disconnects since the last boot |
+| Time sync problem | On when the clock still isn't synced 10 minutes after boot |
+| Push connection | Whether Home Assistant has a live push stream (off = fallback polling) |
+
+Disabled by default (enable them from the device page): Wi-Fi signal/network,
+last disconnect reason, internal memory, the raw RS485 poll/write/frame
+counters, and **firmware pending verification**. RS485 and Wi-Fi counters
+reset when the controller reboots.
+
+A **Restart** button (also disabled by default) reboots the controller — not
+the heat pump. RS485 control pauses for the few seconds it takes to boot, and
+the controller refuses while a firmware update is in progress.
+
 ## Heat pump dashboard card
 
 The integration ships a custom Lovelace card that draws the unit as a live

@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pymacon import (
     ClientStatus,
+    CommandResult,
     ControllerCapabilities,
+    ControllerDiagnostics,
     OtaReleaseInfo,
     OtaStatus,
     StateSnapshot,
@@ -112,6 +114,8 @@ def make_capabilities(device_id: str) -> ControllerCapabilities:
                     "heating": True,
                     "hot_water": True,
                 },
+                "diagnostics": True,
+                "restart": True,
             },
             "setpoint_limits_c": {
                 "cooling": {"min": 5, "max": 25},
@@ -121,6 +125,64 @@ def make_capabilities(device_id: str) -> ControllerCapabilities:
             "network": {
                 "ip_address": "192.168.1.21",
                 "local_hostname": f"{device_id}.local",
+            },
+        }
+    )
+
+
+def make_diagnostics(
+    device_id: str = "arctic-001",
+    *,
+    boot_id: str = "boot-1",
+    uptime_ms: int = 3_600_000,
+    last_reset_reason: str = "power_on",
+    safe_mode: bool = False,
+    time_synced: bool = True,
+    rs485: dict | None = None,
+) -> ControllerDiagnostics:
+    """Build a representative controller diagnostics document."""
+    return ControllerDiagnostics.from_dict(
+        {
+            "protocol_version": 1,
+            "device_id": device_id,
+            "boot_id": boot_id,
+            "diagnostics": {
+                "uptime_ms": uptime_ms,
+                "system": {
+                    "last_reset_reason": last_reset_reason,
+                    "brownout_count": 2,
+                    "panic_count": 1,
+                    "watchdog_count": 0,
+                    "crash_streak": 0,
+                    "safe_mode": safe_mode,
+                },
+                "memory": {
+                    "internal_free_bytes": 90000,
+                    "internal_min_free_bytes": 60000,
+                    "internal_largest_free_block_bytes": 40000,
+                },
+                "wifi": {
+                    "connected": True,
+                    "ssid": "secret-home-network",
+                    "rssi_dbm": -61,
+                    "disconnect_count": 3,
+                    "last_disconnect_reason": 8,
+                },
+                "time": {"synced": time_synced},
+                "ota": {"busy": False, "pending_verify": False},
+                "rs485": rs485
+                if rs485 is not None
+                else {
+                    "role": "master",
+                    "last_ok_uptime_ms": uptime_ms - 1000,
+                    "polls_ok": 500,
+                    "polls_no_response": 4,
+                    "polls_transport_error": 1,
+                    "checksum_errors": 2,
+                    "consecutive_failures": 0,
+                    "writes_ok": 7,
+                    "writes_failed": 1,
+                },
             },
         }
     )
@@ -160,6 +222,12 @@ def mock_clients() -> Generator[dict[str, MagicMock]]:
             )
         )
         client.async_start_update = AsyncMock()
+        client.async_fetch_diagnostics = AsyncMock(
+            return_value=make_diagnostics(device_id)
+        )
+        client.async_restart = AsyncMock(
+            return_value=CommandResult(True, "restart-1", "restarting")
+        )
 
         def subscribe(callback):
             client.snapshot_callback = callback

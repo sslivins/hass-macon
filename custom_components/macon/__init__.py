@@ -102,9 +102,11 @@ async def async_setup_entry(
     entry.runtime_data = runtime
     setup_complete = False
     try:
+        runtime.async_register_devices()
         await hass.config_entries.async_forward_entry_setups(
             entry, PLATFORMS
         )
+        runtime.async_start_diagnostics()
         setup_complete = True
     finally:
         if not setup_complete:
