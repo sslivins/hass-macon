@@ -54,7 +54,7 @@ async def test_fresh_install_creates_controller_and_heat_pump(
     assert controller is not None and heat_pump is not None
     assert controller.manufacturer == "Arctic"
     assert controller.sw_version == "1.2.3"
-    assert controller.configuration_url == "http://controller.local/"
+    assert controller.configuration_url == "https://controller.local"
     assert heat_pump.manufacturer == "Macon"
     assert heat_pump.sw_version is None
     assert heat_pump.name == "Macon Heat Pump -001"
@@ -163,7 +163,7 @@ async def test_controller_health_entities(
     expected = before - timedelta(hours=1)
     assert abs((booted - expected).total_seconds()) < 5
     last_ok = datetime.fromisoformat(_state(hass, SENSOR_DOMAIN, "bus_last_ok"))
-    assert last_ok - booted == timedelta(milliseconds=3_599_000)
+    assert abs((last_ok - (before - timedelta(seconds=1))).total_seconds()) < 5
 
     entities = er.async_get(hass)
     for key in ("wifi_rssi", "wifi_ssid", "internal_free_memory", "bus_polls_ok"):
@@ -193,6 +193,40 @@ async def test_boot_time_is_stable_within_a_boot(
     await hass.async_block_till_done()
     assert client.async_fetch_diagnostics.await_count == 2
     assert _state(hass, SENSOR_DOMAIN, "last_boot") == first
+
+
+async def test_last_rs485_response_is_anchored_to_each_poll(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    """Drift between the controller timer and HA's clock must not leak into
+    the last-response time: after a long uptime the controller's uptime runs
+    ahead of wall time, but a response 2 s before the poll still reads 2 s
+    before the poll, never in the future."""
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    drifted_uptime = 3_600_000 + 120_000  # 2 min ahead of HA's clock
+    client.async_fetch_diagnostics.return_value = make_diagnostics(
+        uptime_ms=drifted_uptime,
+        rs485={
+            "role": "master",
+            "last_ok_uptime_ms": drifted_uptime - 2_000,
+            "consecutive_failures": 0,
+        },
+    )
+    polled = dt_util.utcnow() + DIAGNOSTICS_INTERVAL
+    async_fire_time_changed(hass, polled)
+    await hass.async_block_till_done()
+    last_ok = datetime.fromisoformat(_state(hass, SENSOR_DOMAIN, "bus_last_ok"))
+    assert last_ok <= dt_util.utcnow()
+    assert abs((dt_util.utcnow() - last_ok).total_seconds() - 2) < 2
+
+
+async def test_ipv6_host_builds_valid_configuration_url(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "fe80::1")
+    controller = dr.async_get(hass).async_get_device(identifiers={CONTROLLER})
+    assert controller.configuration_url == "https://[fe80::1]"
 
 
 @pytest.mark.parametrize(

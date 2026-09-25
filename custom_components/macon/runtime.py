@@ -24,6 +24,7 @@ from pymacon import (
     MaconControllerError,
     StateSnapshot,
 )
+from yarl import URL
 
 from .const import (
     DIAGNOSTICS_INTERVAL,
@@ -67,6 +68,7 @@ class MaconRuntime:
         self.diagnostics: ControllerDiagnostics | None = None
         self.diagnostics_ok = False
         self.boot_time: datetime | None = None
+        self.diagnostics_fetched_at: datetime | None = None
         self._boot_time_boot_id: str | None = None
         self._diagnostics_listeners: set[Callable[[], None]] = set()
         self._diagnostics_refreshing = False
@@ -122,7 +124,10 @@ class MaconRuntime:
                 if capabilities is not None
                 else None
             ),
-            configuration_url=f"http://{self.entry.data[CONF_HOST]}/",
+            # The web UI is HTTPS-only; plain HTTP serves a 404 on purpose.
+            configuration_url=str(
+                URL.build(scheme="https", host=self.entry.data[CONF_HOST])
+            ),
         )
 
     @callback
@@ -231,6 +236,7 @@ class MaconRuntime:
                 )
             self.diagnostics_ok = False
         else:
+            self.diagnostics_fetched_at = dt_util.utcnow()
             self._async_track_boot_time(diagnostics)
             self.diagnostics = diagnostics
             self.diagnostics_ok = True
@@ -251,10 +257,25 @@ class MaconRuntime:
         self._boot_time_boot_id = diagnostics.boot_id
 
     def controller_time(self, uptime_ms: int | None) -> datetime | None:
-        """Convert a controller uptime (this boot) to a wall-clock time."""
-        if uptime_ms is None or self.boot_time is None:
+        """Convert a controller uptime (this boot) to a wall-clock time.
+
+        Anchored to the poll that reported it rather than the frozen boot
+        time, so clock drift between HA and the controller can't accumulate
+        over a long uptime (or produce a time in the future).
+        """
+        diagnostics = self.diagnostics
+        fetched_at = self.diagnostics_fetched_at
+        if (
+            uptime_ms is None
+            or diagnostics is None
+            or diagnostics.uptime_ms is None
+            or fetched_at is None
+        ):
             return None
-        return self.boot_time + timedelta(milliseconds=uptime_ms)
+        age_ms = max(0, diagnostics.uptime_ms - uptime_ms)
+        return (fetched_at - timedelta(milliseconds=age_ms)).replace(
+            microsecond=0
+        )
 
     async def async_shutdown(self) -> None:
         if self._unsubscribe_diagnostics_timer is not None:
