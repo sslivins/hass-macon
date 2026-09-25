@@ -53,6 +53,31 @@ def _fault_state(snapshot: StateSnapshot) -> str:
     return FAULT_STATE_UNKNOWN
 
 
+HEATING_MODES = frozenset({"floor_heating", "fan_coil_heating", "heating"})
+
+
+def _active_setpoint(snapshot: StateSnapshot) -> float | None:
+    """The setpoint the unit is working to in its selected mode.
+
+    Mirrors the controller's own mode-to-setpoint mapping: in auto the
+    target depends on which way the unit is currently running.
+    """
+    state = snapshot.state
+    setpoints = state.setpoints_c
+    if state.mode == "cooling":
+        return setpoints.cooling
+    if state.mode == "hot_water":
+        return setpoints.hot_water
+    if state.mode in HEATING_MODES:
+        return setpoints.heating
+    if state.mode == "auto":
+        if state.operation == "cooling":
+            return setpoints.cooling
+        if state.operation == "heating":
+            return setpoints.heating
+    return None
+
+
 TEMPERATURES: tuple[MaconSensorDescription, ...] = (
     MaconSensorDescription(
         key="tank_temperature",
@@ -89,6 +114,13 @@ TEMPERATURES: tuple[MaconSensorDescription, ...] = (
 )
 
 SETPOINTS: tuple[MaconSensorDescription, ...] = (
+    MaconSensorDescription(
+        key="active_setpoint",
+        name="Active setpoint",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        value_fn=_active_setpoint,
+    ),
     MaconSensorDescription(
         key="cooling_setpoint",
         name="Cooling setpoint",
