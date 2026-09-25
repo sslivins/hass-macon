@@ -143,6 +143,36 @@ async def test_two_entries_are_independent_and_push_updates_entities(
     assert first.runtime_data is not second.runtime_data
 
 
+@pytest.mark.parametrize(
+    ("mode", "operation", "expected"),
+    [
+        ("floor_heating", "heating", "38.0"),
+        ("fan_coil_heating", "idle", "38.0"),
+        ("hot_water", "heating", "48.0"),
+        ("cooling", "cooling", "12.0"),
+        ("auto", "cooling", "12.0"),
+        ("auto", "heating", "38.0"),
+        ("auto", "idle", "unknown"),
+        ("unknown", "idle", "unknown"),
+    ],
+)
+async def test_active_setpoint_follows_selected_mode(
+    hass: HomeAssistant,
+    mock_clients: dict[str, MagicMock],
+    mode: str,
+    operation: str,
+    expected: str,
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    mock_clients["controller.local"].snapshot_callback(
+        make_snapshot(revision=2, mode=mode, operation=operation)
+    )
+    await hass.async_block_till_done()
+
+    sensor = entity_id(hass, SENSOR_DOMAIN, "arctic-001_active_setpoint")
+    assert hass.states.get(sensor).state == expected
+
+
 async def test_network_diagnostic_sensors_expose_ip_and_hostname(
     hass: HomeAssistant, mock_clients: dict[str, MagicMock]
 ) -> None:

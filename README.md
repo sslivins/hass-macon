@@ -44,7 +44,9 @@ Controller only and makes no claim to support OEM Macon controllers.
 ## Sensors and fault reporting
 
 Alongside the climate control and the operational sensors (tank/outlet/inlet
-temperatures, setpoints, power, COP, and — as diagnostic entities — compressor
+temperatures, setpoints — including an **Active setpoint** that follows the
+selected mode (heating setpoint in floor/fan-coil heating, hot-water setpoint in
+hot-water mode, cooling setpoint in cooling) — power, COP, and — as diagnostic entities — compressor
 frequency, fan speed/level, expansion valve position, AC voltage/current, DC bus
 voltage, and the refrigerant-circuit temperatures), the
 integration exposes a **Fault code** sensor. Its state is the stable Arctic
