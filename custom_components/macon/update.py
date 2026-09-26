@@ -28,7 +28,7 @@ from pymacon import (
     OtaReleaseInfo,
 )
 
-from .entity import MaconEntity
+from .entity import MaconControllerEntity
 from .runtime import MaconRuntime
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ async def async_setup_entry(
     async_add_entities([MaconFirmwareUpdate(entry.runtime_data)])
 
 
-class MaconFirmwareUpdate(MaconEntity, UpdateEntity):
+class MaconFirmwareUpdate(MaconControllerEntity, UpdateEntity):
     """Expose the controller's firmware OTA flow as an HA update entity."""
 
     _attr_name = "Firmware"

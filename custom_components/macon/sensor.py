@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -13,19 +14,32 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfFrequency,
+    UnitOfInformation,
     UnitOfPower,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pymacon import ControllerCapabilities, StateSnapshot
+from pymacon import ControllerCapabilities, ControllerDiagnostics, StateSnapshot
 
-from .const import FAULT_CODES, FAULT_STATE_OK, FAULT_STATE_UNKNOWN
-from .entity import MaconEntity
+from .const import (
+    BUS_ROLES,
+    FAULT_CODES,
+    FAULT_STATE_OK,
+    FAULT_STATE_UNKNOWN,
+    RESET_REASONS,
+    STATE_UNKNOWN_ENUM,
+)
+from .entity import (
+    MaconControllerDiagnosticEntity,
+    MaconControllerEntity,
+    MaconEntity,
+)
 from .runtime import MaconRuntime
 
 
@@ -42,6 +56,22 @@ class MaconInfoSensorDescription(SensorEntityDescription):
     """A diagnostic sensor sourced from the controller capabilities document."""
 
     value_fn: Callable[[ControllerCapabilities | None], str | None]
+
+
+@dataclass(frozen=True, kw_only=True)
+class MaconControllerSensorDescription(SensorEntityDescription):
+    """A controller-health sensor sourced from the diagnostics poll."""
+
+    value_fn: Callable[
+        [ControllerDiagnostics, MaconRuntime],
+        str | int | float | datetime | None,
+    ]
+
+
+def _enum(value: str | None, options: tuple[str, ...]) -> str | None:
+    if value is None:
+        return None
+    return value if value in options else STATE_UNKNOWN_ENUM
 
 
 def _fault_state(snapshot: StateSnapshot) -> str:
@@ -341,6 +371,171 @@ INFO_SENSORS: tuple[MaconInfoSensorDescription, ...] = (
 )
 
 
+def _count(
+    key: str,
+    name: str,
+    value_fn: Callable[[ControllerDiagnostics], int | None],
+    *,
+    enabled: bool = False,
+) -> MaconControllerSensorDescription:
+    return MaconControllerSensorDescription(
+        key=key,
+        name=name,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_registry_enabled_default=enabled,
+        value_fn=lambda diag, _runtime: value_fn(diag),
+    )
+
+
+def _bytes(
+    key: str,
+    name: str,
+    value_fn: Callable[[ControllerDiagnostics], int | None],
+) -> MaconControllerSensorDescription:
+    return MaconControllerSensorDescription(
+        key=key,
+        name=name,
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        value_fn=lambda diag, _runtime: value_fn(diag),
+    )
+
+
+# Lifetime counters (brownout, panic, watchdog) survive reboots on the
+# controller. RS485 and Wi-Fi counters are per boot; TOTAL_INCREASING treats
+# the drop back to zero after a reboot as a counter reset.
+CONTROLLER_SENSORS: tuple[MaconControllerSensorDescription, ...] = (
+    MaconControllerSensorDescription(
+        key="last_boot",
+        name="Last boot",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda _diag, runtime: runtime.boot_time,
+    ),
+    MaconControllerSensorDescription(
+        key="last_reset_reason",
+        name="Last reset reason",
+        device_class=SensorDeviceClass.ENUM,
+        options=[*RESET_REASONS, STATE_UNKNOWN_ENUM],
+        value_fn=lambda diag, _runtime: _enum(
+            diag.last_reset_reason, RESET_REASONS
+        ),
+    ),
+    _count(
+        "brownout_count",
+        "Brownout count",
+        lambda diag: diag.brownout_count,
+        enabled=True,
+    ),
+    _count(
+        "panic_count",
+        "Crash count",
+        lambda diag: diag.panic_count,
+        enabled=True,
+    ),
+    _count(
+        "watchdog_count",
+        "Watchdog reset count",
+        lambda diag: diag.watchdog_count,
+        enabled=True,
+    ),
+    MaconControllerSensorDescription(
+        key="bus_role",
+        name="RS485 role",
+        device_class=SensorDeviceClass.ENUM,
+        options=[*BUS_ROLES, STATE_UNKNOWN_ENUM],
+        value_fn=lambda diag, _runtime: _enum(diag.bus_role, BUS_ROLES),
+    ),
+    MaconControllerSensorDescription(
+        key="bus_last_ok",
+        name="Last RS485 response",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda diag, runtime: runtime.controller_time(
+            diag.bus_last_ok_uptime_ms
+        ),
+    ),
+    MaconControllerSensorDescription(
+        key="bus_consecutive_failures",
+        name="RS485 consecutive failures",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda diag, _runtime: diag.bus_consecutive_failures,
+    ),
+    _count(
+        "wifi_disconnect_count",
+        "Wi-Fi disconnects",
+        lambda diag: diag.wifi_disconnect_count,
+        enabled=True,
+    ),
+    MaconControllerSensorDescription(
+        key="wifi_rssi",
+        name="Wi-Fi signal",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        value_fn=lambda diag, _runtime: diag.wifi_rssi_dbm,
+    ),
+    MaconControllerSensorDescription(
+        key="wifi_ssid",
+        name="Wi-Fi network",
+        entity_registry_enabled_default=False,
+        value_fn=lambda diag, _runtime: diag.wifi_ssid,
+    ),
+    MaconControllerSensorDescription(
+        key="wifi_last_disconnect_reason",
+        name="Wi-Fi last disconnect reason",
+        entity_registry_enabled_default=False,
+        value_fn=lambda diag, _runtime: diag.wifi_last_disconnect_reason,
+    ),
+    _bytes(
+        "internal_free_memory",
+        "Free internal memory",
+        lambda diag: diag.internal_free_bytes,
+    ),
+    _bytes(
+        "internal_min_free_memory",
+        "Minimum free internal memory",
+        lambda diag: diag.internal_min_free_bytes,
+    ),
+    _bytes(
+        "internal_largest_free_block",
+        "Largest free internal block",
+        lambda diag: diag.internal_largest_free_block_bytes,
+    ),
+    _count("bus_polls_ok", "RS485 polls OK", lambda diag: diag.bus_polls_ok),
+    _count(
+        "bus_polls_no_response",
+        "RS485 polls without response",
+        lambda diag: diag.bus_polls_no_response,
+    ),
+    _count(
+        "bus_polls_transport_error",
+        "RS485 transport errors",
+        lambda diag: diag.bus_polls_transport_error,
+    ),
+    _count(
+        "bus_checksum_errors",
+        "RS485 checksum errors",
+        lambda diag: diag.bus_checksum_errors,
+    ),
+    _count(
+        "bus_writes_ok", "RS485 writes OK", lambda diag: diag.bus_writes_ok
+    ),
+    _count(
+        "bus_writes_failed",
+        "RS485 writes failed",
+        lambda diag: diag.bus_writes_failed,
+    ),
+    _count(
+        "bus_frames_ok",
+        "RS485 frames received",
+        lambda diag: diag.bus_frames_ok,
+    ),
+    _count("bus_resyncs", "RS485 resyncs", lambda diag: diag.bus_resyncs),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -353,6 +548,10 @@ async def async_setup_entry(
     entities.extend(
         MaconInfoSensor(runtime, description)
         for description in INFO_SENSORS
+    )
+    entities.extend(
+        MaconControllerSensor(runtime, description)
+        for description in CONTROLLER_SENSORS
     )
     async_add_entities(entities)
 
@@ -386,7 +585,7 @@ class MaconSensor(MaconEntity, SensorEntity):
         return attributes_fn(snapshot)
 
 
-class MaconInfoSensor(MaconEntity, SensorEntity):
+class MaconInfoSensor(MaconControllerEntity, SensorEntity):
     """Diagnostic sensor sourced from the controller capabilities document."""
 
     entity_description: MaconInfoSensorDescription
@@ -410,3 +609,24 @@ class MaconInfoSensor(MaconEntity, SensorEntity):
         return self.entity_description.value_fn(
             self.runtime.client.capabilities
         )
+
+
+class MaconControllerSensor(MaconControllerDiagnosticEntity, SensorEntity):
+    """Controller-health sensor sourced from the diagnostics poll."""
+
+    entity_description: MaconControllerSensorDescription
+
+    def __init__(
+        self,
+        runtime: MaconRuntime,
+        description: MaconControllerSensorDescription,
+    ) -> None:
+        super().__init__(runtime, description.key)
+        self.entity_description = description
+
+    @property
+    def native_value(self) -> str | int | float | datetime | None:
+        diagnostics = self.diagnostics
+        if diagnostics is None:
+            return None
+        return self.entity_description.value_fn(diagnostics, self.runtime)

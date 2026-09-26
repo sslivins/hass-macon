@@ -1,5 +1,7 @@
 """Constants for the Macon Heat Pump Controller integration."""
 
+from datetime import timedelta
+
 from homeassistant.const import Platform
 
 DOMAIN = "macon"
@@ -11,6 +13,7 @@ DEFAULT_PORT = 8443
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.CLIMATE,
     Platform.SELECT,
     Platform.SENSOR,
@@ -19,12 +22,60 @@ PLATFORMS = [
 
 EVENT_MACON_FAULT = "macon_fault"
 
+# Each config entry is two devices: the Arctic controller (the registry row
+# keyed by the bare device id) and the Macon heat pump it drives, keyed by
+# ``<device_id>:heat_pump`` and linked to the controller with ``via_device``.
+HEAT_PUMP_IDENTIFIER_SUFFIX = ":heat_pump"
+HEAT_PUMP_NAME_PREFIX = "Macon Heat Pump"
+
+# Controller health is polled, not pushed: it changes continuously and is kept
+# out of the revisioned heat-pump snapshot on purpose.
+DIAGNOSTICS_INTERVAL = timedelta(seconds=60)
+
+# Reset reasons reported by the firmware (boot_stats_reset_reason_name(),
+# lowercased). Anything else maps to "unknown".
+RESET_REASONS: tuple[str, ...] = (
+    "power_on",
+    "external",
+    "software",
+    "panic",
+    "interrupt_wdt",
+    "task_wdt",
+    "other_wdt",
+    "deep_sleep",
+    "brownout",
+    "sdio",
+    "usb",
+    "jtag",
+    "efuse_error",
+    "power_glitch",
+    "cpu_lockup",
+)
+
+# What the controller is doing on the RS485 bus.
+BUS_ROLES: tuple[str, ...] = (
+    "master",
+    "listener",
+    "blocked",
+    "demo",
+    "inactive",
+)
+
+STATE_UNKNOWN_ENUM = "unknown"
+
+# Consecutive failed polls before the RS485 link is reported as a problem.
+# The master polls roughly once a second, so this rides out single dropouts.
+BUS_PROBLEM_CONSECUTIVE_FAILURES = 5
+
+# Don't report "time not synced" until SNTP has had a fair chance after boot.
+TIME_SYNC_GRACE_MS = 10 * 60 * 1000
+
 # Bundled Lovelace card. The version is appended to the resource URL as a cache
 # buster, so it must be bumped in lockstep with CARD_VERSION inside
 # www/macon-heat-pump-card.js whenever the card changes.
 CARD_FILENAME = "macon-heat-pump-card.js"
 CARD_URL_BASE = f"/{DOMAIN}_frontend"
-CARD_VERSION = "0.2.5"
+CARD_VERSION = "0.2.6"
 
 FAULT_STATE_OK = "ok"
 FAULT_STATE_UNKNOWN = "unknown"
