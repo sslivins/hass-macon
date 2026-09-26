@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
@@ -35,6 +37,13 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# HA 2026.8 added ``via_device_id`` and deprecated ``via_device``; older
+# supported releases only accept ``via_device``.
+_REGISTRY_ACCEPTS_VIA_DEVICE_ID = (
+    "via_device_id"
+    in inspect.signature(dr.DeviceRegistry.async_get_or_create).parameters
+)
 
 CONTROLLER_MANUFACTURER = "Arctic"
 CONTROLLER_DEFAULT_MODEL = "Arctic Heat Pump Controller"
@@ -97,13 +106,16 @@ class MaconRuntime:
 
     @property
     def device_info(self) -> DeviceInfo:
-        """The Macon heat pump: every heat-pump reading and control."""
+        """The Macon heat pump: every heat-pump reading and control.
+
+        The link to the controller is set once in ``async_register_devices``;
+        entity device info leaves it untouched.
+        """
         return DeviceInfo(
             identifiers={self.heat_pump_identifier},
             name=self.heat_pump_name,
             manufacturer=HEAT_PUMP_MANUFACTURER,
             model=HEAT_PUMP_MODEL,
-            via_device=self.controller_identifier,
         )
 
     @property
@@ -160,12 +172,16 @@ class MaconRuntime:
                 name=self.heat_pump_name,
                 sw_version=None,
             )
-        controller_info = self.controller_device_info
-        device_registry.async_get_or_create(
-            config_entry_id=self.entry.entry_id, **controller_info
+        controller = device_registry.async_get_or_create(
+            config_entry_id=self.entry.entry_id, **self.controller_device_info
+        )
+        via: dict[str, Any] = (
+            {"via_device_id": controller.id}
+            if _REGISTRY_ACCEPTS_VIA_DEVICE_ID
+            else {"via_device": self.controller_identifier}
         )
         device_registry.async_get_or_create(
-            config_entry_id=self.entry.entry_id, **self.device_info
+            config_entry_id=self.entry.entry_id, **self.device_info, **via
         )
 
     async def async_setup(self) -> None:
