@@ -36,11 +36,11 @@ class MaconEntity(Entity):
 
 
 class MaconControllerEntity(MaconEntity):
-    """Entity that belongs to the Arctic controller device."""
+    """Entity about the controller itself rather than the heat pump.
 
-    def __init__(self, runtime: MaconRuntime, key: str) -> None:
-        super().__init__(runtime, key)
-        self._attr_device_info = runtime.controller_device_info
+    Subclasses must set a diagnostic or config entity category so controller
+    entities stay out of the heat pump's controls and sensors.
+    """
 
 
 class MaconControllerDiagnosticEntity(MaconControllerEntity):

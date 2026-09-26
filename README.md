@@ -46,7 +46,7 @@ Controller only and makes no claim to support OEM Macon controllers.
 Alongside the climate control and the operational sensors (tank/outlet/inlet
 temperatures, setpoints — including an **Active setpoint** that follows the
 selected mode (heating setpoint in floor/fan-coil heating, hot-water setpoint in
-hot-water mode, cooling setpoint in cooling) — power, COP, and — as diagnostic entities — compressor
+hot-water mode, cooling setpoint in cooling) — power, COP, compressor
 frequency, fan speed/level, expansion valve position, AC voltage/current, DC bus
 voltage, and the refrigerant-circuit temperatures), the
 integration exposes a **Fault code** sensor. Its state is the stable Arctic
@@ -80,12 +80,13 @@ automations to send a notification with the exact code and description.
 
 ## Controller health
 
-Each paired controller appears as two linked devices: the **Macon heat pump**
-(climate, temperatures, setpoints, faults — everything above) and the **Arctic
-controller** that drives it over RS485 (firmware update, IP address, hostname,
-and controller health). Upgrading from a release before 0.8.0 keeps your
-existing device as the heat pump, including its area and entity ids; the
-controller device is added alongside it.
+Each paired controller is one device. The heat pump's controls and readings
+(everything above) sit in the device page's **Controls** and **Sensors**
+sections; everything about the Arctic controller itself — IP address,
+hostname, and the health entities below — is in its **Diagnostic** section,
+with **Firmware** and **Restart** under **Configuration**. Releases 0.8.0–0.8.3
+split these into two devices; upgrading merges them back into your original
+device, keeping its area, name, and entity ids.
 
 Controller health is polled every 60 seconds from firmware that supports it
 (older firmware just leaves these entities unavailable, without affecting the

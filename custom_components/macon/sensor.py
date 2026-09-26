@@ -174,7 +174,7 @@ SETPOINTS: tuple[MaconSensorDescription, ...] = (
     ),
 )
 
-DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
+READINGS: tuple[MaconSensorDescription, ...] = (
     MaconSensorDescription(
         key="working_mode",
         name="Working mode",
@@ -211,7 +211,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         device_class=SensorDeviceClass.FREQUENCY,
         native_unit_of_measurement=UnitOfFrequency.HERTZ,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda value: (
             value.state.readings.compressor_frequency_hz
         ),
@@ -221,7 +220,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         name="Fan speed",
         native_unit_of_measurement="rpm",
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda value: value.state.readings.fan_rpm,
     ),
     # Expansion valve position, in raw steps.
@@ -243,7 +241,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         name="Expansion valve position",
         native_unit_of_measurement="steps",
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda value: value.state.readings.primary_eev,
     ),
     # Electrical readings follow the same null-means-unknown rule.
@@ -253,7 +250,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         device_class=SensorDeviceClass.VOLTAGE,
         native_unit_of_measurement=UnitOfElectricPotential.VOLT,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda value: value.state.readings.ac_voltage,
     ),
     MaconSensorDescription(
@@ -262,7 +258,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         device_class=SensorDeviceClass.CURRENT,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda value: value.state.readings.ac_current,
     ),
     MaconSensorDescription(
@@ -271,7 +266,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
         device_class=SensorDeviceClass.VOLTAGE,
         native_unit_of_measurement=UnitOfElectricPotential.VOLT,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda value: value.state.readings.dc_voltage,
     ),
     MaconSensorDescription(
@@ -299,7 +293,6 @@ DIAGNOSTICS: tuple[MaconSensorDescription, ...] = (
     MaconSensorDescription(
         key="fan_level",
         name="Fan level",
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda value: value.state.components.fan_level,
     ),
     MaconSensorDescription(
@@ -321,7 +314,6 @@ EXTRA_TEMPERATURES: tuple[MaconSensorDescription, ...] = tuple(
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=value_fn,
     )
     for key, name, value_fn in (
@@ -353,7 +345,7 @@ EXTRA_TEMPERATURES: tuple[MaconSensorDescription, ...] = tuple(
     )
 )
 
-DESCRIPTIONS = TEMPERATURES + SETPOINTS + DIAGNOSTICS + EXTRA_TEMPERATURES
+DESCRIPTIONS = TEMPERATURES + SETPOINTS + READINGS + EXTRA_TEMPERATURES
 
 INFO_SENSORS: tuple[MaconInfoSensorDescription, ...] = (
     MaconInfoSensorDescription(

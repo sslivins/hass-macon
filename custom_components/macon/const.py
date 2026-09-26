@@ -22,11 +22,9 @@ PLATFORMS = [
 
 EVENT_MACON_FAULT = "macon_fault"
 
-# Each config entry is two devices: the Arctic controller (the registry row
-# keyed by the bare device id) and the Macon heat pump it drives, keyed by
-# ``<device_id>:heat_pump`` and linked to the controller with ``via_device``.
-HEAT_PUMP_IDENTIFIER_SUFFIX = ":heat_pump"
-HEAT_PUMP_NAME_PREFIX = "Macon Heat Pump"
+# 0.8.0-0.8.3 split each entry into a controller device and a heat-pump device
+# keyed by ``<device_id>:heat_pump``; setup merges them back into one.
+SPLIT_HEAT_PUMP_IDENTIFIER_SUFFIX = ":heat_pump"
 
 # Controller health is polled, not pushed: it changes continuously and is kept
 # out of the revisioned heat-pump snapshot on purpose.
