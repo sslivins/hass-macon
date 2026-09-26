@@ -6,7 +6,7 @@ import inspect
 import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
@@ -143,6 +143,26 @@ class MaconRuntime:
         )
 
     @callback
+    def _async_find_device(
+        self, device_registry: dr.DeviceRegistry, identifier: tuple[str, str]
+    ) -> dr.DeviceEntry | None:
+        """Find this entry's device by identifier on any supported HA.
+
+        HA 2026.8 added a per-entry lookup and deprecated ``async_get_device``
+        (identifiers are no longer unique across entries); older supported
+        releases only have ``async_get_device``.
+        """
+        by_identifier = getattr(
+            device_registry, "async_get_device_by_identifier", None
+        )
+        if by_identifier is not None:
+            return cast(
+                "dr.DeviceEntry | None",
+                by_identifier(identifier, self.entry.entry_id),
+            )
+        return device_registry.async_get_device(identifiers={identifier})
+
+    @callback
     def async_register_devices(self) -> None:
         """Create the controller and heat-pump devices, migrating old entries.
 
@@ -153,11 +173,11 @@ class MaconRuntime:
         a new row under the bare device id.
         """
         device_registry = dr.async_get(self.hass)
-        heat_pump = device_registry.async_get_device(
-            identifiers={self.heat_pump_identifier}
+        heat_pump = self._async_find_device(
+            device_registry, self.heat_pump_identifier
         )
-        legacy = device_registry.async_get_device(
-            identifiers={self.controller_identifier}
+        legacy = self._async_find_device(
+            device_registry, self.controller_identifier
         )
         if heat_pump is None and legacy is not None:
             _LOGGER.info(
@@ -414,8 +434,8 @@ class MaconRuntime:
         refreshed firmware version and model into the registry explicitly.
         """
         device_registry = dr.async_get(self.hass)
-        device = device_registry.async_get_device(
-            identifiers={self.controller_identifier}
+        device = self._async_find_device(
+            device_registry, self.controller_identifier
         )
         if device is None:
             return
