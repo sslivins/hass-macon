@@ -160,12 +160,15 @@ class MaconRuntime:
                 name=self.heat_pump_name,
                 sw_version=None,
             )
-        controller_info = self.controller_device_info
-        device_registry.async_get_or_create(
-            config_entry_id=self.entry.entry_id, **controller_info
+        controller = device_registry.async_get_or_create(
+            config_entry_id=self.entry.entry_id, **self.controller_device_info
         )
+        # The registry deprecated ``via_device``; link by registry id instead.
+        heat_pump_info = self.device_info.copy()
+        heat_pump_info.pop("via_device", None)
+        heat_pump_info["via_device_id"] = controller.id
         device_registry.async_get_or_create(
-            config_entry_id=self.entry.entry_id, **self.device_info
+            config_entry_id=self.entry.entry_id, **heat_pump_info
         )
 
     async def async_setup(self) -> None:

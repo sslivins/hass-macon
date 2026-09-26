@@ -71,6 +71,15 @@ async def test_fresh_install_creates_controller_and_heat_pump(
     assert device_of(BUTTON_DOMAIN, "restart") == controller.id
 
 
+async def test_device_registration_avoids_deprecated_via_device(
+    hass: HomeAssistant,
+    mock_clients: dict[str, MagicMock],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    assert "deprecated `via_device`" not in caplog.text
+
+
 async def test_legacy_single_device_is_kept_as_the_heat_pump(
     hass: HomeAssistant, mock_clients: dict[str, MagicMock]
 ) -> None:
