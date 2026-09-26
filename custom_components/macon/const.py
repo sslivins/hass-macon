@@ -75,7 +75,7 @@ TIME_SYNC_GRACE_MS = 10 * 60 * 1000
 # www/macon-heat-pump-card.js whenever the card changes.
 CARD_FILENAME = "macon-heat-pump-card.js"
 CARD_URL_BASE = f"/{DOMAIN}_frontend"
-CARD_VERSION = "0.2.6"
+CARD_VERSION = "0.2.7"
 
 FAULT_STATE_OK = "ok"
 FAULT_STATE_UNKNOWN = "unknown"

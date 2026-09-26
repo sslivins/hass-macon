@@ -14,7 +14,7 @@
  *   demo: true                     # optional, synthetic animated data
  */
 
-const CARD_VERSION = "0.2.6";
+const CARD_VERSION = "0.2.7";
 
 /* Macon brand mark, inlined from custom_components/macon/brand/icon.png so the
  * card renders correctly no matter how it is served. */
@@ -454,8 +454,10 @@ class MaconHeatPumpCard extends HTMLElement {
     const { values: v, flags: f, live } = this._readState();
     const unit = this._tempUnit();
     const mode = live ? modeOf(v, f) : "idle";
-    // Defrost runs the cycle backwards, same as cooling.
-    const heating = mode === "heat" || mode === "dhw";
+    // Defrost runs the cycle backwards, same as cooling. An idle unit has no
+    // flow direction, so draw it in the heating layout unless its selected
+    // mode is cooling (modeOf already reports that as "cool").
+    const heating = mode !== "cool" && mode !== "defrost";
 
     this.querySelector("#offline").style.display = live ? "none" : "block";
     this.querySelector(".body").style.opacity = live ? "1" : "0.35";
@@ -463,8 +465,10 @@ class MaconHeatPumpCard extends HTMLElement {
     this._setText("uom", unit === "F" ? "\u00b0F" : "\u00b0C");
 
     const chip = this.querySelector("#mode-chip");
+    // In auto the unit picks heating or cooling itself, so say so when idle.
+    const autoIdle = mode === "idle" && (v.mode || "").toLowerCase() === "auto";
     const chipHtml = `<ha-icon icon="${MODE_ICON[mode]}"></ha-icon>${
-      live ? MODE_LABEL[mode] : "No data"
+      live ? (autoIdle ? "Auto \u00b7 Idle" : MODE_LABEL[mode]) : "No data"
     }`;
     if (chip.innerHTML !== chipHtml) chip.innerHTML = chipHtml;
 
