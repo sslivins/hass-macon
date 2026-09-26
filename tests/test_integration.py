@@ -152,7 +152,8 @@ async def test_two_entries_are_independent_and_push_updates_entities(
         ("cooling", "cooling", "12.0"),
         ("auto", "cooling", "12.0"),
         ("auto", "heating", "38.0"),
-        ("auto", "idle", "unknown"),
+        ("auto", "idle", "38.0"),
+        ("auto", "defrost", "38.0"),
         ("unknown", "idle", "unknown"),
     ],
 )

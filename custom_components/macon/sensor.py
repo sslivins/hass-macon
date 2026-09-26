@@ -89,8 +89,9 @@ HEATING_MODES = frozenset({"floor_heating", "fan_coil_heating", "heating"})
 def _active_setpoint(snapshot: StateSnapshot) -> float | None:
     """The setpoint the unit is working to in its selected mode.
 
-    Mirrors the controller's own mode-to-setpoint mapping: in auto the
-    target depends on which way the unit is currently running.
+    Mirrors the controller's own mode-to-setpoint mapping, except that auto
+    is treated as heating unless the unit is actively cooling: auto's
+    idle-state target is not yet understood, and heating is the common case.
     """
     state = snapshot.state
     setpoints = state.setpoints_c
@@ -103,8 +104,7 @@ def _active_setpoint(snapshot: StateSnapshot) -> float | None:
     if state.mode == "auto":
         if state.operation == "cooling":
             return setpoints.cooling
-        if state.operation == "heating":
-            return setpoints.heating
+        return setpoints.heating
     return None
 
 
