@@ -30,6 +30,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.macon.const import DIAGNOSTICS_INTERVAL, DOMAIN
+from custom_components.macon.runtime import _REGISTRY_ACCEPTS_VIA_DEVICE_ID
 
 from .conftest import make_diagnostics, make_snapshot
 from .test_integration import entity_id, make_entry, setup_entry
@@ -78,7 +79,19 @@ async def test_heat_pump_entity_device_info_has_no_deprecated_via_device(
     assert "via_device" not in entry.runtime_data.device_info
 
 
-@pytest.mark.parametrize("accepts_via_device_id", [True, False])
+@pytest.mark.parametrize(
+    "accepts_via_device_id",
+    [
+        pytest.param(
+            True,
+            marks=pytest.mark.skipif(
+                not _REGISTRY_ACCEPTS_VIA_DEVICE_ID,
+                reason="this Home Assistant has no via_device_id",
+            ),
+        ),
+        False,
+    ],
+)
 async def test_heat_pump_is_linked_to_controller_on_every_supported_ha(
     hass: HomeAssistant,
     mock_clients: dict[str, MagicMock],
