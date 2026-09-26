@@ -71,13 +71,30 @@ async def test_fresh_install_creates_controller_and_heat_pump(
     assert device_of(BUTTON_DOMAIN, "restart") == controller.id
 
 
-async def test_device_registration_avoids_deprecated_via_device(
+async def test_heat_pump_entity_device_info_has_no_deprecated_via_device(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    entry = await setup_entry(hass, "arctic-001", "controller.local")
+    assert "via_device" not in entry.runtime_data.device_info
+
+
+@pytest.mark.parametrize("accepts_via_device_id", [True, False])
+async def test_heat_pump_is_linked_to_controller_on_every_supported_ha(
     hass: HomeAssistant,
     mock_clients: dict[str, MagicMock],
-    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    accepts_via_device_id: bool,
 ) -> None:
+    monkeypatch.setattr(
+        "custom_components.macon.runtime._REGISTRY_ACCEPTS_VIA_DEVICE_ID",
+        accepts_via_device_id,
+    )
     await setup_entry(hass, "arctic-001", "controller.local")
-    assert "deprecated `via_device`" not in caplog.text
+    devices = dr.async_get(hass)
+    controller = devices.async_get_device(identifiers={CONTROLLER})
+    heat_pump = devices.async_get_device(identifiers={HEAT_PUMP})
+    assert controller is not None and heat_pump is not None
+    assert heat_pump.via_device_id == controller.id
 
 
 async def test_legacy_single_device_is_kept_as_the_heat_pump(
