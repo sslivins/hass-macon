@@ -131,14 +131,12 @@ DESCRIPTIONS: tuple[MaconBinarySensorDescription, ...] = (
     MaconBinarySensorDescription(
         key="backup_heater",
         name="Backup heater",
-        entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda value: value.state.components.backup_heater,
     ),
     MaconBinarySensorDescription(
         key="reversing_valve_request",
         name="Reversing valve request",
-        entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda value: (
             value.state.components.reversing_valve_request

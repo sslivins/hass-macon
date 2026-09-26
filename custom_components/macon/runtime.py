@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import cast
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import UNDEFINED, UndefinedType
@@ -32,23 +32,13 @@ from .const import (
     DIAGNOSTICS_INTERVAL,
     DOMAIN,
     EVENT_MACON_FAULT,
-    HEAT_PUMP_IDENTIFIER_SUFFIX,
-    HEAT_PUMP_NAME_PREFIX,
+    SPLIT_HEAT_PUMP_IDENTIFIER_SUFFIX,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-# HA 2026.8 added ``via_device_id`` and deprecated ``via_device``; older
-# supported releases only accept ``via_device``.
-_REGISTRY_ACCEPTS_VIA_DEVICE_ID = (
-    "via_device_id"
-    in inspect.signature(dr.DeviceRegistry.async_get_or_create).parameters
-)
-
-CONTROLLER_MANUFACTURER = "Arctic"
-CONTROLLER_DEFAULT_MODEL = "Arctic Heat Pump Controller"
-HEAT_PUMP_MANUFACTURER = "Macon"
-HEAT_PUMP_MODEL = "Heat pump"
+MANUFACTURER = "Macon"
+DEFAULT_MODEL = "Heat Pump Controller"
 
 
 class MaconRuntime:
@@ -93,43 +83,30 @@ class MaconRuntime:
         return self.entry.data["device_id"]
 
     @property
-    def controller_identifier(self) -> tuple[str, str]:
+    def device_identifier(self) -> tuple[str, str]:
         return (DOMAIN, self.device_id)
 
     @property
-    def heat_pump_identifier(self) -> tuple[str, str]:
-        return (DOMAIN, f"{self.device_id}{HEAT_PUMP_IDENTIFIER_SUFFIX}")
-
-    @property
-    def heat_pump_name(self) -> str:
-        return f"{HEAT_PUMP_NAME_PREFIX} {self.device_id[-4:].upper()}"
+    def _split_heat_pump_identifier(self) -> tuple[str, str]:
+        """Heat-pump device identifier used by the 0.8.0-0.8.3 device split."""
+        return (DOMAIN, f"{self.device_id}{SPLIT_HEAT_PUMP_IDENTIFIER_SUFFIX}")
 
     @property
     def device_info(self) -> DeviceInfo:
-        """The Macon heat pump: every heat-pump reading and control.
+        """The one device per config entry: the heat pump and its controller.
 
-        The link to the controller is set once in ``async_register_devices``;
-        entity device info leaves it untouched.
+        Heat-pump readings and controls sit in the device's normal sections;
+        controller health is categorised as diagnostic so it gets its own.
         """
-        return DeviceInfo(
-            identifiers={self.heat_pump_identifier},
-            name=self.heat_pump_name,
-            manufacturer=HEAT_PUMP_MANUFACTURER,
-            model=HEAT_PUMP_MODEL,
-        )
-
-    @property
-    def controller_device_info(self) -> DeviceInfo:
-        """The Arctic controller: firmware, network, and device health."""
         capabilities = self.client.capabilities
         return DeviceInfo(
-            identifiers={self.controller_identifier},
+            identifiers={self.device_identifier},
             name=self.entry.title,
-            manufacturer=CONTROLLER_MANUFACTURER,
+            manufacturer=MANUFACTURER,
             model=(
                 capabilities.model
                 if capabilities is not None and capabilities.model
-                else CONTROLLER_DEFAULT_MODEL
+                else DEFAULT_MODEL
             ),
             sw_version=(
                 capabilities.firmware_version
@@ -164,44 +141,45 @@ class MaconRuntime:
 
     @callback
     def async_register_devices(self) -> None:
-        """Create the controller and heat-pump devices, migrating old entries.
+        """Register the device, merging the short-lived two-device split.
 
-        Releases before the split registered a single device keyed by the bare
-        device id that held everything. Keep that registry row as the heat
-        pump (it carries the user's area, name, and device automations for
-        the heat-pump controls) by re-keying it, then create the controller as
-        a new row under the bare device id.
+        0.8.0-0.8.3 split each entry into a controller device (bare device id)
+        and a heat-pump device (``<id>:heat_pump``). The heat-pump row is the
+        original pre-split row, carrying the user's name, area, and dashboard
+        references, so keep it: move the controller's entities onto it, drop
+        the controller row, and re-key it back to the bare device id. Entity
+        ids are left untouched.
         """
         device_registry = dr.async_get(self.hass)
         heat_pump = self._async_find_device(
-            device_registry, self.heat_pump_identifier
+            device_registry, self._split_heat_pump_identifier
         )
-        legacy = self._async_find_device(
-            device_registry, self.controller_identifier
-        )
-        if heat_pump is None and legacy is not None:
+        if heat_pump is not None:
             _LOGGER.info(
-                "Splitting Macon device %s into controller and heat pump",
+                "Merging Macon controller and heat pump devices for %s",
                 self.device_id,
             )
-            device_registry.async_update_device(
-                legacy.id,
-                new_identifiers={self.heat_pump_identifier},
-                manufacturer=HEAT_PUMP_MANUFACTURER,
-                model=HEAT_PUMP_MODEL,
-                name=self.heat_pump_name,
-                sw_version=None,
+            controller = self._async_find_device(
+                device_registry, self.device_identifier
             )
-        controller = device_registry.async_get_or_create(
-            config_entry_id=self.entry.entry_id, **self.controller_device_info
-        )
-        via: dict[str, Any] = (
-            {"via_device_id": controller.id}
-            if _REGISTRY_ACCEPTS_VIA_DEVICE_ID
-            else {"via_device": self.controller_identifier}
-        )
+            if controller is not None:
+                entity_registry = er.async_get(self.hass)
+                for entity in er.async_entries_for_device(
+                    entity_registry,
+                    controller.id,
+                    include_disabled_entities=True,
+                ):
+                    entity_registry.async_update_entity(
+                        entity.entity_id, device_id=heat_pump.id
+                    )
+                device_registry.async_remove_device(controller.id)
+            device_registry.async_update_device(
+                heat_pump.id,
+                new_identifiers={self.device_identifier},
+                via_device_id=None,
+            )
         device_registry.async_get_or_create(
-            config_entry_id=self.entry.entry_id, **self.device_info, **via
+            config_entry_id=self.entry.entry_id, **self.device_info
         )
 
     async def async_setup(self) -> None:
@@ -435,7 +413,7 @@ class MaconRuntime:
         """
         device_registry = dr.async_get(self.hass)
         device = self._async_find_device(
-            device_registry, self.controller_identifier
+            device_registry, self.device_identifier
         )
         if device is None:
             return

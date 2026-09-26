@@ -1,4 +1,4 @@
-"""Tests for the controller/heat-pump device split and controller health."""
+"""Tests for the single Macon device and controller health."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.update import DOMAIN as UPDATE_DOMAIN
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import area_registry as ar
@@ -29,54 +30,74 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
+from custom_components.macon.binary_sensor import (
+    CONTROLLER_DESCRIPTIONS as CONTROLLER_BINARY_SENSORS,
+)
 from custom_components.macon.const import DIAGNOSTICS_INTERVAL, DOMAIN
-from custom_components.macon.runtime import _REGISTRY_ACCEPTS_VIA_DEVICE_ID
+from custom_components.macon.sensor import CONTROLLER_SENSORS, INFO_SENSORS
 
 from .conftest import make_diagnostics, make_snapshot
 from .test_integration import entity_id, make_entry, setup_entry
 
-HEAT_PUMP = (DOMAIN, "arctic-001:heat_pump")
-CONTROLLER = (DOMAIN, "arctic-001")
+SPLIT_HEAT_PUMP = (DOMAIN, "arctic-001:heat_pump")
+DEVICE = (DOMAIN, "arctic-001")
+
+# Everything about the controller itself; all other entities describe the
+# heat pump and must stay out of the diagnostic/config sections.
+CONTROLLER_KEYS = {
+    *(d.key for d in CONTROLLER_SENSORS),
+    *(d.key for d in CONTROLLER_BINARY_SENSORS),
+    *(d.key for d in INFO_SENSORS),
+    "push_connected",
+    "firmware_update",
+    "restart",
+}
 
 
 def _state(hass: HomeAssistant, platform: str, key: str) -> str:
     return hass.states.get(entity_id(hass, platform, f"arctic-001_{key}")).state
 
 
-async def test_fresh_install_creates_controller_and_heat_pump(
-    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
-) -> None:
-    await setup_entry(hass, "arctic-001", "controller.local")
-    devices = dr.async_get(hass)
-    entities = er.async_get(hass)
-
-    controller = devices.async_get_device(identifiers={CONTROLLER})
-    heat_pump = devices.async_get_device(identifiers={HEAT_PUMP})
-    assert controller is not None and heat_pump is not None
-    assert controller.manufacturer == "Arctic"
-    assert controller.sw_version == "1.2.3"
-    assert controller.configuration_url == "https://controller.local"
-    assert heat_pump.manufacturer == "Macon"
-    assert heat_pump.sw_version is None
-    assert heat_pump.name == "Macon Heat Pump -001"
-    assert heat_pump.via_device_id == controller.id
-
-    def device_of(platform: str, key: str) -> str | None:
-        entry = entities.async_get(entity_id(hass, platform, f"arctic-001_{key}"))
-        return entry.device_id
-
-    assert device_of(SENSOR_DOMAIN, "tank_temperature") == heat_pump.id
-    assert device_of(SENSOR_DOMAIN, "ip_address") == controller.id
-    assert device_of(SENSOR_DOMAIN, "brownout_count") == controller.id
-    assert device_of(UPDATE_DOMAIN, "firmware_update") == controller.id
-    assert device_of(BUTTON_DOMAIN, "restart") == controller.id
-
-
-async def test_heat_pump_entity_device_info_has_no_deprecated_via_device(
+async def test_one_device_holds_heat_pump_and_controller(
     hass: HomeAssistant, mock_clients: dict[str, MagicMock]
 ) -> None:
     entry = await setup_entry(hass, "arctic-001", "controller.local")
-    assert "via_device" not in entry.runtime_data.device_info
+    devices = dr.async_get(hass)
+    entities = er.async_get(hass)
+
+    device_entries = dr.async_entries_for_config_entry(devices, entry.entry_id)
+    assert len(device_entries) == 1
+    device = device_entries[0]
+    assert device.identifiers == {DEVICE}
+    assert device.manufacturer == "Macon"
+    assert device.sw_version == "1.2.3"
+    assert device.configuration_url == "https://controller.local"
+    assert device.via_device_id is None
+
+    registered = er.async_entries_for_config_entry(entities, entry.entry_id)
+    assert registered
+    assert {e.device_id for e in registered} == {device.id}
+
+
+async def test_controller_entities_have_their_own_section(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    """Controller health is diagnostic (restart/firmware are config); every
+    heat-pump entity stays in the device's controls and sensors."""
+    entry = await setup_entry(hass, "arctic-001", "controller.local")
+    registered = er.async_entries_for_config_entry(
+        er.async_get(hass), entry.entry_id
+    )
+    by_key = {e.unique_id.removeprefix("arctic-001_"): e for e in registered}
+    assert CONTROLLER_KEYS <= set(by_key)
+    for key, registry_entry in by_key.items():
+        if key in {"firmware_update", "restart"}:
+            expected = EntityCategory.CONFIG
+        elif key in CONTROLLER_KEYS:
+            expected = EntityCategory.DIAGNOSTIC
+        else:
+            expected = None
+        assert registry_entry.entity_category == expected, key
 
 
 @pytest.mark.skipif(
@@ -92,64 +113,113 @@ async def test_setup_avoids_deprecated_async_get_device(
         raise AssertionError("async_get_device is deprecated")
 
     monkeypatch.setattr(dr.DeviceRegistry, "async_get_device", deprecated)
-    await setup_entry(hass, "arctic-001", "controller.local")
-    devices = dr.async_get(hass)
-    for identifier in (CONTROLLER, HEAT_PUMP):
-        assert devices.async_get_device_by_identifier(
-            identifier, hass.config_entries.async_entries(DOMAIN)[0].entry_id
-        )
-
-
-@pytest.mark.parametrize(
-    "accepts_via_device_id",
-    [
-        pytest.param(
-            True,
-            marks=pytest.mark.skipif(
-                not _REGISTRY_ACCEPTS_VIA_DEVICE_ID,
-                reason="this Home Assistant has no via_device_id",
-            ),
-        ),
-        False,
-    ],
-)
-async def test_heat_pump_is_linked_to_controller_on_every_supported_ha(
-    hass: HomeAssistant,
-    mock_clients: dict[str, MagicMock],
-    monkeypatch: pytest.MonkeyPatch,
-    accepts_via_device_id: bool,
-) -> None:
-    monkeypatch.setattr(
-        "custom_components.macon.runtime._REGISTRY_ACCEPTS_VIA_DEVICE_ID",
-        accepts_via_device_id,
+    entry = await setup_entry(hass, "arctic-001", "controller.local")
+    assert dr.async_get(hass).async_get_device_by_identifier(
+        DEVICE, entry.entry_id
     )
-    await setup_entry(hass, "arctic-001", "controller.local")
-    devices = dr.async_get(hass)
-    controller = devices.async_get_device(identifiers={CONTROLLER})
-    heat_pump = devices.async_get_device(identifiers={HEAT_PUMP})
-    assert controller is not None and heat_pump is not None
-    assert heat_pump.via_device_id == controller.id
 
 
-async def test_legacy_single_device_is_kept_as_the_heat_pump(
+async def test_split_devices_are_merged_back_into_one(
     hass: HomeAssistant, mock_clients: dict[str, MagicMock]
 ) -> None:
-    """The pre-split registry row keeps its id, area, and heat-pump entities;
-    controller entities move to a new controller device without renaming."""
+    """0.8.0-0.8.3 registered a controller device and a heat-pump device. The
+    heat-pump row (the user's original device) is kept with its id, name, and
+    area; controller entities move onto it without being renamed."""
     entry = make_entry("arctic-001", "controller.local")
     entry.add_to_hass(hass)
     devices = dr.async_get(hass)
     entities = er.async_get(hass)
     area = ar.async_get(hass).async_create("Mechanical room")
+    controller = devices.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={DEVICE},
+        name=entry.title,
+        manufacturer="Arctic",
+        model="Arctic Heat Pump Controller",
+    )
+    heat_pump = devices.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={SPLIT_HEAT_PUMP},
+        name="Macon Heat Pump -001",
+        manufacturer="Macon",
+        model="Heat pump",
+    )
+    devices.async_update_device(
+        heat_pump.id,
+        area_id=area.id,
+        name_by_user="Heat Pump 1",
+        via_device_id=controller.id,
+    )
+
+    def register(
+        platform: str, key: str, device_id: str, object_id: str
+    ) -> str:
+        return entities.async_get_or_create(
+            platform,
+            DOMAIN,
+            f"arctic-001_{key}",
+            config_entry=entry,
+            device_id=device_id,
+            suggested_object_id=object_id,
+        ).entity_id
+
+    tank = register(SENSOR_DOMAIN, "tank_temperature", heat_pump.id, "old_tank")
+    brownouts = register(
+        SENSOR_DOMAIN, "brownout_count", controller.id, "old_brownouts"
+    )
+    firmware = register(
+        UPDATE_DOMAIN, "firmware_update", controller.id, "old_firmware"
+    )
+    polls = register(SENSOR_DOMAIN, "bus_polls_ok", controller.id, "old_polls")
+    entities.async_update_entity(
+        polls, disabled_by=er.RegistryEntryDisabler.INTEGRATION
+    )
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    device_entries = dr.async_entries_for_config_entry(devices, entry.entry_id)
+    assert [d.id for d in device_entries] == [heat_pump.id]
+    merged = device_entries[0]
+    assert merged.identifiers == {DEVICE}
+    assert merged.area_id == area.id
+    assert merged.name_by_user == "Heat Pump 1"
+    assert merged.via_device_id is None
+    assert merged.manufacturer == "Macon"
+    assert merged.sw_version == "1.2.3"
+
+    for entity in (tank, brownouts, firmware, polls):
+        registry_entry = entities.async_get(entity)
+        assert registry_entry is not None, entity
+        assert registry_entry.device_id == heat_pump.id
+    # Entity ids are a user contract; the merge must not rename them.
+    assert tank == "sensor.old_tank"
+    assert hass.states.get("sensor.old_brownouts").state == "2"
+
+    # A second setup is a no-op.
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert [
+        d.id for d in dr.async_entries_for_config_entry(devices, entry.entry_id)
+    ] == [heat_pump.id]
+
+
+async def test_pre_split_device_is_kept(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    """Upgrading straight from a pre-0.8 release leaves the single device and
+    its entities as they were."""
+    entry = make_entry("arctic-001", "controller.local")
+    entry.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    entities = er.async_get(hass)
     legacy = devices.async_get_or_create(
         config_entry_id=entry.entry_id,
-        identifiers={CONTROLLER},
+        identifiers={DEVICE},
         name=entry.title,
         manufacturer="Macon",
-        model="Macon Heat Pump Controller",
         sw_version="1.2.0",
     )
-    devices.async_update_device(legacy.id, area_id=area.id)
     tank = entities.async_get_or_create(
         SENSOR_DOMAIN,
         DOMAIN,
@@ -158,47 +228,14 @@ async def test_legacy_single_device_is_kept_as_the_heat_pump(
         device_id=legacy.id,
         suggested_object_id="old_tank",
     )
-    ip = entities.async_get_or_create(
-        SENSOR_DOMAIN,
-        DOMAIN,
-        "arctic-001_ip_address",
-        config_entry=entry,
-        device_id=legacy.id,
-        suggested_object_id="old_ip",
-    )
-    firmware = entities.async_get_or_create(
-        UPDATE_DOMAIN,
-        DOMAIN,
-        "arctic-001_firmware_update",
-        config_entry=entry,
-        device_id=legacy.id,
-        suggested_object_id="old_firmware",
-    )
 
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    heat_pump = devices.async_get_device(identifiers={HEAT_PUMP})
-    controller = devices.async_get_device(identifiers={CONTROLLER})
-    assert heat_pump is not None and controller is not None
-    assert heat_pump.id == legacy.id
-    assert heat_pump.area_id == area.id
-    assert heat_pump.sw_version is None
-    assert heat_pump.via_device_id == controller.id
-    assert controller.id != legacy.id
-    assert controller.sw_version == "1.2.3"
-
-    assert entities.async_get(tank.entity_id).device_id == heat_pump.id
-    assert entities.async_get(ip.entity_id).device_id == controller.id
-    assert entities.async_get(firmware.entity_id).device_id == controller.id
-    # Entity ids are a user contract; the split must not rename them.
-    assert tank.entity_id == "sensor.old_tank"
-    assert hass.states.get("sensor.old_ip").state == "192.168.1.21"
-
-    # A second setup is a no-op: no third device, no re-keying.
-    assert await hass.config_entries.async_reload(entry.entry_id)
-    await hass.async_block_till_done()
-    assert len(dr.async_entries_for_config_entry(devices, entry.entry_id)) == 2
+    device_entries = dr.async_entries_for_config_entry(devices, entry.entry_id)
+    assert [d.id for d in device_entries] == [legacy.id]
+    assert device_entries[0].sw_version == "1.2.3"
+    assert entities.async_get(tank.entity_id).device_id == legacy.id
 
 
 async def test_controller_health_entities(
@@ -285,7 +322,7 @@ async def test_ipv6_host_builds_valid_configuration_url(
     hass: HomeAssistant, mock_clients: dict[str, MagicMock]
 ) -> None:
     await setup_entry(hass, "arctic-001", "fe80::1")
-    controller = dr.async_get(hass).async_get_device(identifiers={CONTROLLER})
+    controller = dr.async_get(hass).async_get_device(identifiers={DEVICE})
     assert controller.configuration_url == "https://[fe80::1]"
 
 
