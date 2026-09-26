@@ -79,6 +79,27 @@ async def test_heat_pump_entity_device_info_has_no_deprecated_via_device(
     assert "via_device" not in entry.runtime_data.device_info
 
 
+@pytest.mark.skipif(
+    not hasattr(dr.DeviceRegistry, "async_get_device_by_identifier"),
+    reason="this Home Assistant has no per-entry device lookup",
+)
+async def test_setup_avoids_deprecated_async_get_device(
+    hass: HomeAssistant,
+    mock_clients: dict[str, MagicMock],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def deprecated(*args: object, **kwargs: object) -> None:
+        raise AssertionError("async_get_device is deprecated")
+
+    monkeypatch.setattr(dr.DeviceRegistry, "async_get_device", deprecated)
+    await setup_entry(hass, "arctic-001", "controller.local")
+    devices = dr.async_get(hass)
+    for identifier in (CONTROLLER, HEAT_PUMP):
+        assert devices.async_get_device_by_identifier(
+            identifier, hass.config_entries.async_entries(DOMAIN)[0].entry_id
+        )
+
+
 @pytest.mark.parametrize(
     "accepts_via_device_id",
     [
