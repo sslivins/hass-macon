@@ -27,7 +27,7 @@ def make_snapshot(
     device_id: str = "arctic-001",
     *,
     revision: int = 1,
-    mode: str = "floor_heating",
+    mode: str = "heating",
     operation: str = "heating",
     available: bool = True,
     error: dict | None = None,
@@ -104,10 +104,9 @@ def make_capabilities(device_id: str) -> ControllerCapabilities:
                 "control_setpoints": True,
                 "supported_modes": [
                     "cooling",
-                    "floor_heating",
-                    "fan_coil_heating",
+                    "heating",
                     "hot_water",
-                    "auto",
+                    "hot_water_cooling",
                 ],
                 "setpoint_controls": {
                     "cooling": True,

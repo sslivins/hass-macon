@@ -34,6 +34,9 @@ from .const import (
     FAULT_STATE_UNKNOWN,
     RESET_REASONS,
     STATE_UNKNOWN_ENUM,
+    WORKING_MODES,
+    normalize_mode,
+    setpoint_kind,
 )
 from .entity import (
     MaconControllerDiagnosticEntity,
@@ -83,30 +86,11 @@ def _fault_state(snapshot: StateSnapshot) -> str:
     return FAULT_STATE_UNKNOWN
 
 
-HEATING_MODES = frozenset({"floor_heating", "fan_coil_heating", "heating"})
-
-
 def _active_setpoint(snapshot: StateSnapshot) -> float | None:
-    """The setpoint the unit is working to in its selected mode.
-
-    Mirrors the controller's own mode-to-setpoint mapping, except that auto
-    is treated as heating unless the unit is actively cooling: auto's
-    idle-state target is not yet understood, and heating is the common case.
-    """
+    """The setpoint the unit is working to in its selected mode."""
     state = snapshot.state
-    setpoints = state.setpoints_c
-    if state.mode == "cooling":
-        return setpoints.cooling
-    if state.mode == "hot_water":
-        return setpoints.hot_water
-    if state.mode in HEATING_MODES:
-        return setpoints.heating
-    if state.mode == "auto":
-        if state.operation == "cooling":
-            return setpoints.cooling
-        return setpoints.heating
-    return None
-
+    kind = setpoint_kind(state.mode, state.operation)
+    return None if kind is None else getattr(state.setpoints_c, kind)
 
 TEMPERATURES: tuple[MaconSensorDescription, ...] = (
     MaconSensorDescription(
@@ -179,16 +163,10 @@ READINGS: tuple[MaconSensorDescription, ...] = (
         key="working_mode",
         name="Working mode",
         device_class=SensorDeviceClass.ENUM,
-        options=[
-            "cooling",
-            "floor_heating",
-            "fan_coil_heating",
-            "heating",
-            "hot_water",
-            "auto",
-            "unknown",
-        ],
-        value_fn=lambda value: value.state.mode,
+        options=[*WORKING_MODES, STATE_UNKNOWN_ENUM],
+        value_fn=lambda value: _enum(
+            normalize_mode(value.state.mode), WORKING_MODES
+        ),
     ),
     MaconSensorDescription(
         key="operation",

@@ -14,7 +14,7 @@
  *   demo: true                     # optional, synthetic animated data
  */
 
-const CARD_VERSION = "0.2.7";
+const CARD_VERSION = "0.2.8";
 
 /* Macon brand mark, inlined from custom_components/macon/brand/icon.png so the
  * card renders correctly no matter how it is served. */
@@ -206,13 +206,29 @@ function titleCase(s) {
   return s.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
+// Controllers before the mode rename used these keys.
+const LEGACY_MODE = {
+  floor_heating: "heating",
+  fan_coil_heating: "mode_2",
+  auto: "hot_water_cooling",
+};
+
+function workingMode(values) {
+  const wm = (values.mode || "").toLowerCase();
+  return LEGACY_MODE[wm] || wm;
+}
+
+const HEATING_MODES = new Set(["heating", "mode_2", "mode_3", "mode_4"]);
+
 function modeOf(values, flags) {
   const op = (values.operation || "").toLowerCase();
-  const wm = (values.mode || "").toLowerCase();
+  const wm = workingMode(values);
   if (op === "defrost" || flags.defrosting) return "defrost";
   if (op === "cooling" || wm === "cooling") return "cool";
   if (wm === "hot_water") return "dhw";
-  if (op === "heating" || wm.includes("heat")) return "heat";
+  // Hot water / cooling makes hot water whenever it isn't cooling.
+  if (wm === "hot_water_cooling" && op === "heating") return "dhw";
+  if (op === "heating" || HEATING_MODES.has(wm)) return "heat";
   if (op === "fault") return "fault";
   return "idle";
 }
@@ -465,10 +481,14 @@ class MaconHeatPumpCard extends HTMLElement {
     this._setText("uom", unit === "F" ? "\u00b0F" : "\u00b0C");
 
     const chip = this.querySelector("#mode-chip");
-    // In auto the unit picks heating or cooling itself, so say so when idle.
-    const autoIdle = mode === "idle" && (v.mode || "").toLowerCase() === "auto";
+    // Hot water / cooling switches between the two itself, so say so when idle.
+    const dualIdle = mode === "idle" && workingMode(v) === "hot_water_cooling";
     const chipHtml = `<ha-icon icon="${MODE_ICON[mode]}"></ha-icon>${
-      live ? (autoIdle ? "Auto \u00b7 Idle" : MODE_LABEL[mode]) : "No data"
+      live
+        ? dualIdle
+          ? "Hot water / cooling \u00b7 Idle"
+          : MODE_LABEL[mode]
+        : "No data"
     }`;
     if (chip.innerHTML !== chipHtml) chip.innerHTML = chipHtml;
 

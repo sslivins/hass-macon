@@ -49,10 +49,12 @@
         "name": "Selected mode",
         "state": {
           "cooling": "Cooling",
-          "floor_heating": "Floor heating",
-          "fan_coil_heating": "Fan-coil heating",
+          "heating": "Heating",
+          "mode_2": "Mode 2",
+          "mode_3": "Mode 3",
+          "mode_4": "Mode 4",
           "hot_water": "Hot water",
-          "auto": "Auto"
+          "hot_water_cooling": "Hot water / cooling"
         }
       }
     }

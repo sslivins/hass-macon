@@ -15,15 +15,18 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pymacon import ControllerState
 
+from .const import HEATING_MODES, normalize_mode, setpoint_kind
 from .entity import MaconEntity
 from .runtime import MaconRuntime
 
 MODE_MAP = {
     "cooling": HVACMode.COOL,
-    "floor_heating": HVACMode.HEAT,
-    "fan_coil_heating": HVACMode.HEAT,
+    "heating": HVACMode.HEAT,
+    "mode_2": HVACMode.HEAT,
+    "mode_3": HVACMode.HEAT,
+    "mode_4": HVACMode.HEAT,
     "hot_water": HVACMode.HEAT,
-    "auto": HVACMode.HEAT_COOL,
+    "hot_water_cooling": HVACMode.HEAT_COOL,
 }
 
 ACTION_MAP = {
@@ -61,37 +64,20 @@ class MaconClimate(MaconEntity, ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         state = self._state
-        if state is None:
+        kind = self._setpoint_kind
+        if state is None or kind is None:
             return None
-        if state.mode == "cooling":
-            return state.setpoints_c.cooling
-        if state.mode == "hot_water":
-            return state.setpoints_c.hot_water
-        return state.setpoints_c.heating
+        return getattr(state.setpoints_c, kind)
 
     @property
     def min_temp(self) -> float:
-        capabilities = self.runtime.client.capabilities
-        state = self._state
-        if capabilities is None or state is None:
-            return 0
-        if state.mode == "cooling":
-            return capabilities.cooling_range.minimum
-        if state.mode == "hot_water":
-            return capabilities.hot_water_range.minimum
-        return capabilities.heating_range.minimum
+        limits = self._limits
+        return 0 if limits is None else limits.minimum
 
     @property
     def max_temp(self) -> float:
-        capabilities = self.runtime.client.capabilities
-        state = self._state
-        if capabilities is None or state is None:
-            return 0
-        if state.mode == "cooling":
-            return capabilities.cooling_range.maximum
-        if state.mode == "hot_water":
-            return capabilities.hot_water_range.maximum
-        return capabilities.heating_range.maximum
+        limits = self._limits
+        return 0 if limits is None else limits.maximum
 
     @property
     def hvac_modes(self) -> list[HVACMode]:
@@ -99,42 +85,28 @@ class MaconClimate(MaconEntity, ClimateEntity):
         modes = [HVACMode.OFF]
         state = self._state
         if capabilities is not None and capabilities.control_power:
-            if "cooling" in capabilities.supported_modes:
+            supported = {normalize_mode(m) for m in capabilities.supported_modes}
+            if "cooling" in supported:
                 modes.append(HVACMode.COOL)
-            if "auto" in capabilities.supported_modes:
+            if "hot_water_cooling" in supported:
                 modes.append(HVACMode.HEAT_COOL)
-            if any(
-                mode in capabilities.supported_modes
-                for mode in (
-                    "floor_heating",
-                    "fan_coil_heating",
-                    "hot_water",
-                )
-            ):
+            if supported & (HEATING_MODES | {"hot_water"}):
                 modes.append(HVACMode.HEAT)
         if state is not None:
-            current_mode = MODE_MAP.get(state.mode)
+            current_mode = MODE_MAP.get(normalize_mode(state.mode))
             if current_mode is not None and current_mode not in modes:
                 modes.append(current_mode)
         return modes
 
     @property
     def supported_features(self) -> ClimateEntityFeature:
-        state = self._state
         capabilities = self.runtime.client.capabilities
-        if state is None or capabilities is None:
+        kind = self._setpoint_kind
+        if capabilities is None or kind is None:
             return ClimateEntityFeature(0)
-        supported = ClimateEntityFeature(0)
-        if state.mode == "cooling" and capabilities.setpoint_controls.cooling:
-            supported |= ClimateEntityFeature.TARGET_TEMPERATURE
-        elif (
-            state.mode == "hot_water"
-            and capabilities.setpoint_controls.hot_water
-        ):
-            supported |= ClimateEntityFeature.TARGET_TEMPERATURE
-        elif capabilities.setpoint_controls.heating:
-            supported |= ClimateEntityFeature.TARGET_TEMPERATURE
-        return supported
+        if getattr(capabilities.setpoint_controls, kind):
+            return ClimateEntityFeature.TARGET_TEMPERATURE
+        return ClimateEntityFeature(0)
 
     @property
     def hvac_mode(self) -> HVACMode | None:
@@ -143,7 +115,7 @@ class MaconClimate(MaconEntity, ClimateEntity):
             return None
         if not state.unit_on:
             return HVACMode.OFF
-        return MODE_MAP.get(state.mode, HVACMode.OFF)
+        return MODE_MAP.get(normalize_mode(state.mode), HVACMode.OFF)
 
     @property
     def hvac_action(self) -> HVACAction | None:
@@ -162,57 +134,72 @@ class MaconClimate(MaconEntity, ClimateEntity):
 
         if hvac_mode == HVACMode.HEAT:
             state = self._state
-            if state is not None and state.mode in {
-                "floor_heating",
-                "fan_coil_heating",
-                "hot_water",
-            }:
+            if state is not None and normalize_mode(state.mode) in (
+                HEATING_MODES | {"hot_water"}
+            ):
                 await self.runtime.client.async_set_power(True)
                 return
             raise HomeAssistantError(
-                "Select an exact Macon heating mode before turning heat on"
+                "Select heating or hot water from the mode entity before "
+                "turning heat on"
             )
 
-        exact_mode = {
+        wanted = {
             HVACMode.COOL: "cooling",
-            HVACMode.HEAT_COOL: "auto",
+            HVACMode.HEAT_COOL: "hot_water_cooling",
         }.get(hvac_mode)
-        if exact_mode is None:
+        if wanted is None:
             raise HomeAssistantError(
                 "Select an exact Macon mode from the mode entity"
             )
-        if (
-            not capabilities.control_mode
-            or exact_mode not in capabilities.supported_modes
-        ):
+        # Send the key the controller advertised (older firmware says "auto").
+        key = next(
+            (
+                m
+                for m in capabilities.supported_modes
+                if normalize_mode(m) == wanted
+            ),
+            None,
+        )
+        if not capabilities.control_mode or key is None:
             raise HomeAssistantError("Selected-mode control is unavailable")
-        await self.runtime.client.async_set_mode(exact_mode)
+        await self.runtime.client.async_set_mode(key)
         await self.runtime.client.async_set_power(True)
 
     async def async_set_temperature(self, **kwargs: float) -> None:
         value = kwargs.get(ATTR_TEMPERATURE)
         if value is None or isinstance(value, bool) or int(value) != value:
             raise HomeAssistantError("Macon setpoints require whole degrees C")
-        state = self._state
         capabilities = self.runtime.client.capabilities
-        if state is None or capabilities is None:
+        kind = self._setpoint_kind
+        if capabilities is None or kind is None:
             raise HomeAssistantError("Setpoint control is unavailable")
-        if state.mode == "cooling":
-            if not capabilities.setpoint_controls.cooling:
-                raise HomeAssistantError("Cooling setpoint control is unavailable")
-            await self.runtime.client.async_set_cooling_setpoint(int(value))
-        elif state.mode == "hot_water":
-            if not capabilities.setpoint_controls.hot_water:
-                raise HomeAssistantError(
-                    "Hot-water setpoint control is unavailable"
-                )
-            await self.runtime.client.async_set_hot_water_setpoint(int(value))
-        else:
-            if not capabilities.setpoint_controls.heating:
-                raise HomeAssistantError(
-                    "Heating setpoint control is unavailable"
-                )
-            await self.runtime.client.async_set_heating_setpoint(int(value))
+        if not getattr(capabilities.setpoint_controls, kind):
+            raise HomeAssistantError(
+                f"{kind.replace('_', ' ').capitalize()} setpoint control "
+                "is unavailable"
+            )
+        setter = {
+            "cooling": self.runtime.client.async_set_cooling_setpoint,
+            "heating": self.runtime.client.async_set_heating_setpoint,
+            "hot_water": self.runtime.client.async_set_hot_water_setpoint,
+        }[kind]
+        await setter(int(value))
+
+    @property
+    def _setpoint_kind(self) -> str | None:
+        state = self._state
+        if state is None:
+            return None
+        return setpoint_kind(state.mode, state.operation)
+
+    @property
+    def _limits(self):
+        capabilities = self.runtime.client.capabilities
+        kind = self._setpoint_kind
+        if capabilities is None or kind is None:
+            return None
+        return getattr(capabilities, f"{kind}_range")
 
     @property
     def _state(self) -> ControllerState | None:
