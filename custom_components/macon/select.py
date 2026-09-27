@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import normalize_mode
 from .entity import MaconEntity
 from .runtime import MaconRuntime
 
@@ -32,14 +33,17 @@ class MaconModeSelect(MaconEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         capabilities = self.runtime.client.capabilities
-        return [] if capabilities is None else list(capabilities.supported_modes)
+        if capabilities is None:
+            return []
+        return [normalize_mode(mode) for mode in capabilities.supported_modes]
 
     @property
     def current_option(self) -> str | None:
         snapshot = self.runtime.snapshot
-        if snapshot is None or snapshot.state.mode not in self.options:
+        if snapshot is None:
             return None
-        return snapshot.state.mode
+        mode = normalize_mode(snapshot.state.mode)
+        return mode if mode in self.options else None
 
     @property
     def available(self) -> bool:
@@ -53,12 +57,20 @@ class MaconModeSelect(MaconEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         capabilities = self.runtime.client.capabilities
-        if (
-            capabilities is None
-            or not capabilities.control_mode
-            or option not in capabilities.supported_modes
-        ):
+        # Send the key the controller advertised; older firmware uses the
+        # pre-rename names.
+        key = None
+        if capabilities is not None and capabilities.control_mode:
+            key = next(
+                (
+                    mode
+                    for mode in capabilities.supported_modes
+                    if normalize_mode(mode) == option
+                ),
+                None,
+            )
+        if key is None:
             raise HomeAssistantError(
                 "The selected Macon mode is not currently supported"
             )
-        await self.runtime.client.async_set_mode(option)
+        await self.runtime.client.async_set_mode(key)

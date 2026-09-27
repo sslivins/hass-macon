@@ -146,14 +146,21 @@ async def test_two_entries_are_independent_and_push_updates_entities(
 @pytest.mark.parametrize(
     ("mode", "operation", "expected"),
     [
-        ("floor_heating", "heating", "38.0"),
-        ("fan_coil_heating", "idle", "38.0"),
+        ("heating", "heating", "38.0"),
+        ("mode_2", "idle", "38.0"),
+        ("mode_3", "heating", "unknown"),
+        ("mode_4", "heating", "unknown"),
         ("hot_water", "heating", "48.0"),
         ("cooling", "cooling", "12.0"),
+        ("hot_water_cooling", "cooling", "12.0"),
+        ("hot_water_cooling", "heating", "48.0"),
+        ("hot_water_cooling", "idle", "48.0"),
+        ("hot_water_cooling", "defrost", "48.0"),
+        # Older controllers report the pre-rename keys.
+        ("floor_heating", "heating", "38.0"),
+        ("fan_coil_heating", "idle", "38.0"),
         ("auto", "cooling", "12.0"),
-        ("auto", "heating", "38.0"),
-        ("auto", "idle", "38.0"),
-        ("auto", "defrost", "38.0"),
+        ("auto", "idle", "48.0"),
         ("unknown", "idle", "unknown"),
     ],
 )
@@ -228,11 +235,56 @@ async def test_controls_are_command_driven_and_not_optimistic(
     await hass.services.async_call(
         "select",
         "select_option",
-        {"entity_id": mode, "option": "fan_coil_heating"},
+        {"entity_id": mode, "option": "hot_water"},
         blocking=True,
     )
-    client.async_set_mode.assert_awaited_once_with("fan_coil_heating")
-    assert hass.states.get(mode).state == "floor_heating"
+    client.async_set_mode.assert_awaited_once_with("hot_water")
+    assert hass.states.get(mode).state == "heating"
+
+
+async def test_legacy_mode_keys_are_shown_with_current_names(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    client.capabilities = replace(
+        client.capabilities,
+        supported_modes=(
+            "cooling",
+            "floor_heating",
+            "fan_coil_heating",
+            "hot_water",
+            "auto",
+        ),
+    )
+    client.capabilities_callback(client.capabilities)
+    client.snapshot_callback(
+        make_snapshot(revision=2, mode="auto", operation="idle")
+    )
+    await hass.async_block_till_done()
+
+    mode = entity_id(hass, SELECT_DOMAIN, "arctic-001_mode")
+    climate = entity_id(hass, CLIMATE_DOMAIN, "arctic-001_climate")
+    working = entity_id(hass, SENSOR_DOMAIN, "arctic-001_working_mode")
+    assert hass.states.get(mode).attributes["options"] == [
+        "cooling",
+        "heating",
+        "mode_2",
+        "hot_water",
+        "hot_water_cooling",
+    ]
+    assert hass.states.get(mode).state == "hot_water_cooling"
+    assert hass.states.get(working).state == "hot_water_cooling"
+    assert hass.states.get(climate).state == "heat_cool"
+    assert hass.states.get(climate).attributes["temperature"] == 48
+
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": mode, "option": "heating"},
+        blocking=True,
+    )
+    client.async_set_mode.assert_awaited_once_with("floor_heating")
 
 
 async def test_generic_heat_does_not_choose_a_macon_heating_subtype(
