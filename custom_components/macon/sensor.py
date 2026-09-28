@@ -281,6 +281,7 @@ READINGS: tuple[MaconSensorDescription, ...] = (
         value_fn=_fault_state,
         attributes_fn=lambda value: {
             "description": value.state.error.description,
+            "help_url": value.state.error.help_url,
         },
     ),
 )
