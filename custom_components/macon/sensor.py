@@ -24,11 +24,13 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from pymacon import ControllerCapabilities, ControllerDiagnostics, StateSnapshot
 
 from .const import (
     BUS_ROLES,
+    DOMAIN,
     FAULT_CODES,
     FAULT_STATE_OK,
     FAULT_STATE_UNKNOWN,
@@ -419,14 +421,6 @@ CONTROLLER_SENSORS: tuple[MaconControllerSensorDescription, ...] = (
         value_fn=lambda diag, _runtime: _enum(diag.bus_role, BUS_ROLES),
     ),
     MaconControllerSensorDescription(
-        key="bus_last_ok",
-        name="Last RS485 response",
-        device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda diag, runtime: runtime.controller_time(
-            diag.bus_last_ok_uptime_ms
-        ),
-    ),
-    MaconControllerSensorDescription(
         key="bus_consecutive_failures",
         name="RS485 consecutive failures",
         state_class=SensorStateClass.MEASUREMENT,
@@ -513,6 +507,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     runtime: MaconRuntime = entry.runtime_data
+    _remove_retired_sensors(hass, runtime)
     entities: list[SensorEntity] = [
         MaconSensor(runtime, description) for description in DESCRIPTIONS
     ]
@@ -525,6 +520,23 @@ async def async_setup_entry(
         for description in CONTROLLER_SENSORS
     )
     async_add_entities(entities)
+
+
+# Sensors that no longer exist. Remove them so they don't linger as
+# "unavailable" on the device page.
+# - bus_last_ok: now the last_response attribute of RS485 problem, since a
+#   timestamp that changes every poll flooded the logbook.
+RETIRED_SENSOR_KEYS = ("bus_last_ok",)
+
+
+def _remove_retired_sensors(hass: HomeAssistant, runtime: MaconRuntime) -> None:
+    registry = er.async_get(hass)
+    for key in RETIRED_SENSOR_KEYS:
+        entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{runtime.device_id}_{key}"
+        )
+        if entity_id:
+            registry.async_remove(entity_id)
 
 
 class MaconSensor(MaconEntity, SensorEntity):

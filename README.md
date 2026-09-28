@@ -112,8 +112,8 @@ heat pump). Enabled by default:
 | Brownout count, Crash count, Watchdog reset count | Lifetime totals, kept across reboots |
 | Safe mode | On when repeated crashes put the firmware in safe mode |
 | RS485 role | `master`, `listener`, `blocked` (another master is on the bus), `demo`, `inactive` |
-| RS485 problem | On when the heat pump stops answering polls, or another master blocks the bus |
-| Last RS485 response, RS485 consecutive failures | Link health at a glance |
+| RS485 problem | On when the heat pump stops answering polls, or another master blocks the bus. Its `last_response` attribute shows when the heat pump last answered |
+| RS485 consecutive failures | Link health at a glance |
 | Wi-Fi disconnects | Disconnects since the last boot |
 | Time sync problem | On when the clock still isn't synced 10 minutes after boot |
 | Push connection | Whether Home Assistant has a live push stream (off = fallback polling) |

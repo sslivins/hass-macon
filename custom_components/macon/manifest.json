@@ -11,7 +11,7 @@
   "requirements": [
     "pymacon==0.5.2"
   ],
-  "version": "0.10.0",
+  "version": "0.10.1",
   "zeroconf": [
     "_arctic._tcp.local."
   ]
