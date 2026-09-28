@@ -1,0 +1,58 @@
+{
+  "protocol_version": 1,
+  "device_id": "arctic-001",
+  "device_name": "Heat pump 2",
+  "boot_id": "0123456789abcdef0123456789abcdef",
+  "revision": 80,
+  "captured_at_ms": 1552213,
+  "state": {
+    "connected": true,
+    "unit_on": true,
+    "mode": "hot_water_cooling",
+    "operation": "idle",
+    "defrosting": false,
+    "components": {
+      "compressor": false,
+      "fan": false,
+      "fan_level": 0,
+      "water_pump": false,
+      "backup_heater": false,
+      "reversing_valve_request": false
+    },
+    "temperatures_c": {
+      "tank": 32,
+      "outlet": 15,
+      "inlet": 14,
+      "outdoor_ambient": 16,
+      "discharge": 18,
+      "suction": 17,
+      "outdoor_coil": 14,
+      "indoor_coil": 16,
+      "ipm": 22
+    },
+    "setpoints_c": {
+      "cooling": 10,
+      "heating": 40,
+      "hot_water": 50
+    },
+    "readings": {
+      "compressor_frequency_hz": 0,
+      "fan_rpm": 0,
+      "primary_eev": 17,
+      "ac_voltage": 230,
+      "ac_current": 0,
+      "dc_voltage": 320,
+      "power_w": 0,
+      "thermal_w": 0,
+      "cop": null
+    },
+    "error": {
+      "active": false,
+      "code": null,
+      "name": null,
+      "description": null,
+      "severity": null,
+      "help_url": null
+    }
+  }
+}

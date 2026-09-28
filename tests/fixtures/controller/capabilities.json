@@ -1,0 +1,50 @@
+{
+  "protocol_version": 1,
+  "device_id": "arctic-001",
+  "device_name": "Heat pump 2",
+  "model": "Arctic Heat Pump Controller",
+  "firmware_version": "2.11.37",
+  "transports": {
+    "rest": true,
+    "websocket": true
+  },
+  "capabilities": {
+    "read_state": true,
+    "control_power": false,
+    "control_mode": true,
+    "control_setpoints": true,
+    "advanced_parameters": false,
+    "raw_registers": false,
+    "diagnostics": true,
+    "restart": true,
+    "supported_modes": [
+      "cooling",
+      "heating",
+      "hot_water",
+      "hot_water_cooling"
+    ],
+    "setpoint_controls": {
+      "cooling": true,
+      "heating": true,
+      "hot_water": true
+    }
+  },
+  "setpoint_limits_c": {
+    "cooling": {
+      "min": 4,
+      "max": 30
+    },
+    "heating": {
+      "min": 20,
+      "max": 60
+    },
+    "hot_water": {
+      "min": 30,
+      "max": 60
+    }
+  },
+  "network": {
+    "ip_address": "192.168.1.21",
+    "local_hostname": "arctic-001.local"
+  }
+}

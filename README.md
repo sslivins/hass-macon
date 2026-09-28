@@ -197,9 +197,24 @@ mypy custom_components/macon
 pytest
 ```
 
-Home Assistant test dependencies are installed by the test extra. The test
-extra tracks the `pymacon` repository; the integration manifest pins the
-runtime dependency to `pymacon==0.2.2`.
+Home Assistant test dependencies are installed by the test extra. Both the
+test extra and the integration manifest pin `pymacon` to the same release.
+
+### Tests against real controller data
+
+`tests/test_real_controller.py` runs the integration on responses captured
+from a real controller (`tests/fixtures/controller/`) through the real
+`pymacon` parsers. It checks that:
+
+- every entity gets a value, apart from a short, explained list;
+- a minute of a steady heat pump adds nothing to the logbook, so values that
+  change on every poll must be attributes or measurement sensors;
+- the entity inventory matches `tests/snapshots/test_real_controller.ambr`.
+  Adding, removing or recategorizing an entity changes that file; review the
+  diff and update it with `pytest --snapshot-update`.
+
+Recapture the fixtures when the controller API changes (see the fixture
+README).
 
 ### Continuous integration
 
