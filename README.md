@@ -55,7 +55,10 @@ integration exposes a **Fault code** sensor. Its state is the stable Arctic
 Controller fault code (for example `P02`) of the highest-severity active fault,
 `ok` when the unit is healthy, or `unknown` for an unrecognised code. The
 human-readable text is available on the sensor's `description` attribute, and
-Home Assistant's own History/Logbook provides the fault timeline.
+`help_url` links to Arctic's troubleshooting article for that fault code (or to
+Arctic's support site when there's no article for it; needs controller firmware
+v2.11.35 or later). Home Assistant's own History/Logbook provides the fault
+timeline.
 
 **Expansion valve position** is reported in raw steps, as the mainboard
 publishes no full-scale step count and therefore no meaningful percentage. It,
@@ -75,10 +78,12 @@ data:
   name: HIGH_PRESSURE
   description: High pressure protection activated
   severity: critical
+  help_url: https://arcticheatpumps.freshdesk.com/support/solutions/articles/60000832838
 ```
 
 When a fault clears, `active` is `false` and `code` is `null`. Use the event in
-automations to send a notification with the exact code and description.
+automations to send a notification with the exact code, description, and a
+link to the troubleshooting article.
 
 ## Controller health
 

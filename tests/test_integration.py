@@ -43,6 +43,7 @@ from .conftest import make_snapshot
 
 FINGERPRINT = "AA" * 32
 TOKEN = "ab" * 32
+P02_HELP = "https://arcticheatpumps.freshdesk.com/support/solutions/articles/60000832838"
 
 
 def make_entry(device_id: str, host: str) -> MockConfigEntry:
@@ -464,6 +465,7 @@ async def test_fault_sensor_and_event_track_onset_and_clear(
                 "name": "HIGH_PRESSURE",
                 "description": "High pressure protection activated",
                 "severity": "critical",
+                "help_url": P02_HELP,
             },
         )
     )
@@ -474,6 +476,7 @@ async def test_fault_sensor_and_event_track_onset_and_clear(
     assert state.attributes["description"] == (
         "High pressure protection activated"
     )
+    assert state.attributes["help_url"] == P02_HELP
     assert len(events) == 1
     assert events[0].data == {
         "device_id": "arctic-001",
@@ -482,6 +485,7 @@ async def test_fault_sensor_and_event_track_onset_and_clear(
         "name": "HIGH_PRESSURE",
         "description": "High pressure protection activated",
         "severity": "critical",
+        "help_url": P02_HELP,
     }
 
     client.snapshot_callback(

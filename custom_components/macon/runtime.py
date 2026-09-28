@@ -374,6 +374,7 @@ class MaconRuntime:
                 "name": error.name,
                 "description": error.description,
                 "severity": error.severity,
+                "help_url": error.help_url,
             },
         )
 
