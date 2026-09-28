@@ -190,7 +190,19 @@ def make_diagnostics(
 
 
 @pytest.fixture
-def mock_clients() -> Generator[dict[str, MagicMock]]:
+def wire_payloads() -> dict[str, dict] | None:
+    """Raw controller JSON to serve instead of the built-in examples.
+
+    Override in a test module to return ``{"capabilities": ..., "state": ...,
+    "diagnostics": ...}`` documents; they go through the real pymacon parsers.
+    """
+    return None
+
+
+@pytest.fixture
+def mock_clients(
+    wire_payloads: dict[str, dict] | None,
+) -> Generator[dict[str, MagicMock]]:
     """Create one isolated fake client for every configured host."""
     clients: dict[str, MagicMock] = {}
 
@@ -226,6 +238,16 @@ def mock_clients() -> Generator[dict[str, MagicMock]]:
         client.async_fetch_diagnostics = AsyncMock(
             return_value=make_diagnostics(device_id)
         )
+        if wire_payloads is not None:
+            client.capabilities = ControllerCapabilities.from_dict(
+                wire_payloads["capabilities"]
+            )
+            client.start.return_value = StateSnapshot.from_dict(
+                wire_payloads["state"]
+            )
+            client.async_fetch_diagnostics.return_value = (
+                ControllerDiagnostics.from_dict(wire_payloads["diagnostics"])
+            )
         client.async_restart = AsyncMock(
             return_value=CommandResult(True, "restart-1", "restarting")
         )

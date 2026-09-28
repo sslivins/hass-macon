@@ -1,0 +1,46 @@
+{
+  "protocol_version": 1,
+  "device_id": "arctic-001",
+  "boot_id": "0123456789abcdef0123456789abcdef",
+  "diagnostics": {
+    "uptime_ms": 1552981,
+    "system": {
+      "last_reset_reason": "software",
+      "brownout_count": 0,
+      "panic_count": 0,
+      "watchdog_count": 0,
+      "crash_streak": 0,
+      "safe_mode": false
+    },
+    "memory": {
+      "internal_free_bytes": 49115,
+      "internal_min_free_bytes": 27356,
+      "internal_largest_free_block_bytes": 16384
+    },
+    "wifi": {
+      "connected": true,
+      "ssid": "home-network",
+      "rssi_dbm": -56,
+      "disconnect_count": 0,
+      "last_disconnect_reason": null
+    },
+    "time": {
+      "synced": true
+    },
+    "ota": {
+      "busy": false,
+      "pending_verify": false
+    },
+    "rs485": {
+      "role": "master",
+      "polls_ok": 1842,
+      "polls_no_response": 0,
+      "polls_transport_error": 0,
+      "checksum_errors": 0,
+      "consecutive_failures": 0,
+      "writes_ok": 0,
+      "writes_failed": 0,
+      "last_ok_uptime_ms": 1551992
+    }
+  }
+}
