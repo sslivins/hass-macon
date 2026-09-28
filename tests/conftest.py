@@ -31,12 +31,14 @@ def make_snapshot(
     operation: str = "heating",
     available: bool = True,
     error: dict | None = None,
+    device_name: str | None = None,
 ) -> StateSnapshot:
     """Build a representative controller snapshot."""
     return StateSnapshot.from_dict(
         {
             "protocol_version": 1,
             "device_id": device_id,
+            "device_name": device_name,
             "boot_id": "boot-1",
             "revision": revision,
             "captured_at_ms": revision * 1000,

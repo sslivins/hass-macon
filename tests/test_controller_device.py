@@ -519,3 +519,74 @@ async def test_restart_button_errors_surface(
         await hass.services.async_call(
             BUTTON_DOMAIN, "press", {"entity_id": button}, blocking=True
         )
+
+
+def _device(hass: HomeAssistant) -> dr.DeviceEntry:
+    device = dr.async_get(hass).async_get_device(identifiers={DEVICE})
+    assert device is not None
+    return device
+
+
+async def _push_snapshot(
+    hass: HomeAssistant, client: MagicMock, revision: int, name: str | None
+) -> None:
+    client.snapshot_callback(make_snapshot(revision=revision, device_name=name))
+    await hass.async_block_till_done()
+
+
+async def test_controller_friendly_name_names_the_device(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    """A friendly name given on the controller's screen becomes the device
+    name, follows later renames, and falls back to the entry title when it
+    is cleared."""
+    entry = await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    assert _device(hass).name == entry.title
+
+    await _push_snapshot(hass, client, 2, "Garage heat pump")
+    assert _device(hass).name == "Garage heat pump"
+
+    await _push_snapshot(hass, client, 3, "Pool heat pump")
+    assert _device(hass).name == "Pool heat pump"
+
+    await _push_snapshot(hass, client, 4, None)
+    assert _device(hass).name == entry.title
+
+
+async def test_controller_rename_keeps_a_name_set_in_home_assistant(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    """A name the user typed in Home Assistant is never overwritten; the
+    controller's name only changes the integration-provided default."""
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    dr.async_get(hass).async_update_device(
+        _device(hass).id, name_by_user="Basement"
+    )
+
+    await _push_snapshot(hass, client, 2, "Garage heat pump")
+    device = _device(hass)
+    assert device.name_by_user == "Basement"
+    assert device.name == "Garage heat pump"
+
+
+async def test_device_is_created_with_the_controller_friendly_name(
+    hass: HomeAssistant,
+    mock_clients: dict[str, MagicMock],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A controller that already has a friendly name is registered under it
+    rather than the generic entry title."""
+    from . import conftest
+
+    original = conftest.make_snapshot
+    monkeypatch.setattr(
+        conftest,
+        "make_snapshot",
+        lambda *args, **kwargs: original(
+            *args, **{"device_name": "Shop heat pump", **kwargs}
+        ),
+    )
+    await setup_entry(hass, "arctic-001", "controller.local")
+    assert _device(hass).name == "Shop heat pump"

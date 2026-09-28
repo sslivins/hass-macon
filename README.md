@@ -95,6 +95,12 @@ with **Firmware** and **Restart** under **Configuration**. Releases 0.8.0–0.8.
 split these into two devices; upgrading merges them back into your original
 device, keeping its area, name, and entity ids.
 
+The device is named after the name you give the controller (**Settings →
+Controller name** on its screen or web page) and follows it when you change it; with
+no friendly name it uses the integration's title. A name you set in Home
+Assistant always wins and is never overwritten. Entity ids don't change on a
+rename.
+
 Controller health is polled every 60 seconds from firmware that supports it
 (older firmware just leaves these entities unavailable, without affecting the
 heat pump). Enabled by default:
