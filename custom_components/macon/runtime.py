@@ -92,6 +92,23 @@ class MaconRuntime:
         return (DOMAIN, f"{self.device_id}{SPLIT_HEAT_PUMP_IDENTIFIER_SUFFIX}")
 
     @property
+    def device_name(self) -> str:
+        """The controller's friendly name, or the entry title if it has none.
+
+        The latest snapshot is authoritative (it carries renames as they
+        happen); capabilities only cover the moment before the first one.
+        Only the integration-provided name is set, so a name the user typed
+        in Home Assistant (``name_by_user``) always wins.
+        """
+        snapshot = self.snapshot
+        if snapshot is not None:
+            friendly = snapshot.device_name
+        else:
+            capabilities = self.client.capabilities
+            friendly = None if capabilities is None else capabilities.device_name
+        return friendly or self.entry.title
+
+    @property
     def device_info(self) -> DeviceInfo:
         """The one device per config entry: the heat pump and its controller.
 
@@ -101,7 +118,7 @@ class MaconRuntime:
         capabilities = self.client.capabilities
         return DeviceInfo(
             identifiers={self.device_identifier},
-            name=self.entry.title,
+            name=self.device_name,
             manufacturer=MANUFACTURER,
             model=(
                 capabilities.model
@@ -334,7 +351,10 @@ class MaconRuntime:
 
     @callback
     def _async_snapshot_received(self, snapshot: StateSnapshot) -> None:
+        previous = self.snapshot
         self.snapshot = snapshot
+        if previous is None or previous.device_name != snapshot.device_name:
+            self._async_sync_device_name()
         self._async_fire_fault_transitions(snapshot)
         self._async_notify_listeners()
         # A new boot changes the reset reason, counters, and boot time; don't
@@ -398,6 +418,15 @@ class MaconRuntime:
     ) -> None:
         self._async_update_registered_device(capabilities)
         self._async_notify_listeners()
+
+    @callback
+    def _async_sync_device_name(self) -> None:
+        """Follow a rename on the controller in the device registry."""
+        device_registry = dr.async_get(self.hass)
+        device = self._async_find_device(device_registry, self.device_identifier)
+        if device is None or device.name == self.device_name:
+            return
+        device_registry.async_update_device(device.id, name=self.device_name)
 
     @callback
     def _async_update_registered_device(
