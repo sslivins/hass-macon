@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -35,6 +36,9 @@ class MaconControllerBinarySensorDescription(BinarySensorEntityDescription):
     """A controller-health binary sensor sourced from the diagnostics poll."""
 
     value_fn: Callable[[ControllerDiagnostics], bool | None]
+    attributes_fn: (
+        Callable[[ControllerDiagnostics, MaconRuntime], dict[str, Any]] | None
+    ) = None
 
 
 def _bus_problem(diag: ControllerDiagnostics) -> bool | None:
@@ -47,6 +51,15 @@ def _bus_problem(diag: ControllerDiagnostics) -> bool | None:
     if diag.bus_consecutive_failures is None:
         return None
     return diag.bus_consecutive_failures >= BUS_PROBLEM_CONSECUTIVE_FAILURES
+
+
+def _bus_attributes(
+    diag: ControllerDiagnostics, runtime: MaconRuntime
+) -> dict[str, Any]:
+    # An attribute rather than its own timestamp sensor: it changes on every
+    # poll, and the logbook records every state change but ignores attributes.
+    last_ok = runtime.controller_time(diag.bus_last_ok_uptime_ms)
+    return {"last_response": last_ok.isoformat() if last_ok else None}
 
 
 def _time_sync_problem(diag: ControllerDiagnostics) -> bool | None:
@@ -71,6 +84,7 @@ CONTROLLER_DESCRIPTIONS: tuple[MaconControllerBinarySensorDescription, ...] = (
         name="RS485 problem",
         device_class=BinarySensorDeviceClass.PROBLEM,
         value_fn=_bus_problem,
+        attributes_fn=_bus_attributes,
     ),
     MaconControllerBinarySensorDescription(
         key="time_sync_problem",
@@ -223,3 +237,11 @@ class MaconControllerBinarySensor(
         if diagnostics is None:
             return None
         return self.entity_description.value_fn(diagnostics)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        attributes_fn = self.entity_description.attributes_fn
+        diagnostics = self.diagnostics
+        if attributes_fn is None or diagnostics is None:
+            return None
+        return attributes_fn(diagnostics, self.runtime)

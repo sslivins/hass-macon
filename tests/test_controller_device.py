@@ -58,6 +58,13 @@ def _state(hass: HomeAssistant, platform: str, key: str) -> str:
     return hass.states.get(entity_id(hass, platform, f"arctic-001_{key}")).state
 
 
+def _last_response(hass: HomeAssistant) -> datetime:
+    state = hass.states.get(
+        entity_id(hass, BINARY_SENSOR_DOMAIN, "arctic-001_bus_problem")
+    )
+    return datetime.fromisoformat(state.attributes["last_response"])
+
+
 async def test_one_device_holds_heat_pump_and_controller(
     hass: HomeAssistant, mock_clients: dict[str, MagicMock]
 ) -> None:
@@ -259,7 +266,7 @@ async def test_controller_health_entities(
     booted = datetime.fromisoformat(_state(hass, SENSOR_DOMAIN, "last_boot"))
     expected = before - timedelta(hours=1)
     assert abs((booted - expected).total_seconds()) < 5
-    last_ok = datetime.fromisoformat(_state(hass, SENSOR_DOMAIN, "bus_last_ok"))
+    last_ok = _last_response(hass)
     assert abs((last_ok - (before - timedelta(seconds=1))).total_seconds()) < 5
 
     entities = er.async_get(hass)
@@ -313,9 +320,63 @@ async def test_last_rs485_response_is_anchored_to_each_poll(
     polled = dt_util.utcnow() + DIAGNOSTICS_INTERVAL
     async_fire_time_changed(hass, polled)
     await hass.async_block_till_done()
-    last_ok = datetime.fromisoformat(_state(hass, SENSOR_DOMAIN, "bus_last_ok"))
+    last_ok = _last_response(hass)
     assert last_ok <= dt_util.utcnow()
     assert abs((dt_util.utcnow() - last_ok).total_seconds() - 2) < 2
+
+
+async def test_last_rs485_response_does_not_flood_the_logbook(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    """A healthy poll moves the last-response time but must not change any
+    entity's state: the logbook records every state change."""
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    first = _last_response(hass)
+    before = {
+        state.entity_id: state.state
+        for state in hass.states.async_all()
+        if state.entity_id.split(".")[0] in (SENSOR_DOMAIN, BINARY_SENSOR_DOMAIN)
+    }
+
+    uptime = 3_600_000 + 60_000
+    client.async_fetch_diagnostics.return_value = make_diagnostics(
+        uptime_ms=uptime,
+        rs485={
+            "role": "master",
+            "last_ok_uptime_ms": uptime - 5_000,
+            "consecutive_failures": 0,
+        },
+    )
+    async_fire_time_changed(hass, dt_util.utcnow() + DIAGNOSTICS_INTERVAL)
+    await hass.async_block_till_done()
+
+    assert _last_response(hass) != first
+    changed = {
+        entity: (value, hass.states.get(entity).state)
+        for entity, value in before.items()
+        if hass.states.get(entity).state != value
+    }
+    assert changed == {}
+
+
+async def test_retired_last_response_sensor_is_removed(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    entry = make_entry("arctic-001", "controller.local")
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        SENSOR_DOMAIN, DOMAIN, "arctic-001_bus_last_ok", config_entry=entry
+    )
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert (
+        registry.async_get_entity_id(SENSOR_DOMAIN, DOMAIN, "arctic-001_bus_last_ok")
+        is None
+    )
 
 
 async def test_ipv6_host_builds_valid_configuration_url(
