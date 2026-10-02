@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import cast
 
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, callback
@@ -385,18 +386,23 @@ class MaconRuntime:
             return
         self._last_fault_active = error.active
         self._last_fault_code = error.code
-        self.hass.bus.async_fire(
-            EVENT_MACON_FAULT,
-            {
-                "device_id": self.device_id,
-                "active": error.active,
-                "code": error.code,
-                "name": error.name,
-                "description": error.description,
-                "severity": error.severity,
-                "help_url": error.help_url,
-            },
+        data: dict[str, object] = {
+            "device_id": self.device_id,
+            "active": error.active,
+            "code": error.code,
+            "name": error.name,
+            "description": error.description,
+            "severity": error.severity,
+            "help_url": error.help_url,
+        }
+        # Lets the activity log show the fault on the fault sensor's and the
+        # device's pages, not only in the unfiltered view.
+        fault_entity = er.async_get(self.hass).async_get_entity_id(
+            SENSOR_DOMAIN, DOMAIN, f"{self.device_id}_fault_code"
         )
+        if fault_entity is not None:
+            data["entity_id"] = fault_entity
+        self.hass.bus.async_fire(EVENT_MACON_FAULT, data)
 
     @callback
     def _async_status_received(self, status: ClientStatus) -> None:
