@@ -486,6 +486,7 @@ async def test_fault_sensor_and_event_track_onset_and_clear(
         "description": "High pressure protection activated",
         "severity": "critical",
         "help_url": P02_HELP,
+        "entity_id": fault,
     }
 
     client.snapshot_callback(
