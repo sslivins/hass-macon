@@ -62,26 +62,28 @@ BUS_ROLES: tuple[str, ...] = (
 STATE_UNKNOWN_ENUM = "unknown"
 
 # Working modes as the unit numbers them (0-6). Only cooling, heating,
-# hot_water and hot_water_cooling can be selected; mode_2..mode_4 are heating
-# variants the unit can be in but the controller never selects.
+# hot_water and hot_water_cooling can be selected; freeze_protection (the
+# unit's idle anti-freeze pump run), mode_3 and mode_4 are heating variants the
+# unit can be in but the controller never selects.
 WORKING_MODES: tuple[str, ...] = (
     "cooling",
     "heating",
-    "mode_2",
+    "freeze_protection",
     "mode_3",
     "mode_4",
     "hot_water",
     "hot_water_cooling",
 )
 
-# Controllers before the bench mapping used these names for the same modes.
+# Older controllers used these names for the same modes.
 LEGACY_MODE_KEYS = {
     "floor_heating": "heating",
-    "fan_coil_heating": "mode_2",
+    "fan_coil_heating": "freeze_protection",
+    "mode_2": "freeze_protection",
     "auto": "hot_water_cooling",
 }
 
-HEATING_MODES = frozenset({"heating", "mode_2", "mode_3", "mode_4"})
+HEATING_MODES = frozenset({"heating", "freeze_protection", "mode_3", "mode_4"})
 
 
 def normalize_mode(mode: str) -> str:
@@ -92,7 +94,7 @@ def normalize_mode(mode: str) -> str:
 def setpoint_kind(mode: str, operation: str) -> str | None:
     """Which setpoint the unit works to in ``mode``.
 
-    Modes 1 and 2 use the heating setpoint. Modes 3 and 4 use installer
+    Heating and freeze protection use the heating setpoint. Modes 3 and 4 use installer
     parameters that aren't exposed, so they have none here. Hot water /
     cooling works to the cooling setpoint while cooling, otherwise hot water.
     """
@@ -101,7 +103,7 @@ def setpoint_kind(mode: str, operation: str) -> str | None:
         return "cooling"
     if mode == "hot_water":
         return "hot_water"
-    if mode in ("heating", "mode_2"):
+    if mode in ("heating", "freeze_protection"):
         return "heating"
     if mode == "hot_water_cooling":
         return "cooling" if operation == "cooling" else "hot_water"

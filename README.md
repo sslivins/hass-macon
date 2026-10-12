@@ -45,7 +45,7 @@ Controller only and makes no claim to support OEM Macon controllers.
 
 Alongside the climate control and the operational sensors (tank/outlet/inlet
 temperatures, setpoints — including an **Active setpoint** that follows the
-selected mode (heating setpoint in heating and mode 2, hot-water setpoint in
+selected mode (heating setpoint in heating and freeze protection, hot-water setpoint in
 hot-water mode, cooling setpoint in cooling, and in hot water / cooling the
 cooling setpoint while cooling and the hot-water setpoint otherwise; modes 3
 and 4 have none) — power, COP, compressor

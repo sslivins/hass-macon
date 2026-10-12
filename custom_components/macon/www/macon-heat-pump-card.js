@@ -206,10 +206,11 @@ function titleCase(s) {
   return s.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-// Controllers before the mode rename used these keys.
+// Older controllers used these keys.
 const LEGACY_MODE = {
   floor_heating: "heating",
-  fan_coil_heating: "mode_2",
+  fan_coil_heating: "freeze_protection",
+  mode_2: "freeze_protection",
   auto: "hot_water_cooling",
 };
 
@@ -218,7 +219,7 @@ function workingMode(values) {
   return LEGACY_MODE[wm] || wm;
 }
 
-const HEATING_MODES = new Set(["heating", "mode_2", "mode_3", "mode_4"]);
+const HEATING_MODES = new Set(["heating", "freeze_protection", "mode_3", "mode_4"]);
 
 function modeOf(values, flags) {
   const op = (values.operation || "").toLowerCase();
