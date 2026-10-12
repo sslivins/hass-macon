@@ -148,7 +148,7 @@ async def test_two_entries_are_independent_and_push_updates_entities(
     ("mode", "operation", "expected"),
     [
         ("heating", "heating", "38.0"),
-        ("mode_2", "idle", "38.0"),
+        ("freeze_protection", "idle", "38.0"),
         ("mode_3", "heating", "unknown"),
         ("mode_4", "heating", "unknown"),
         ("hot_water", "heating", "48.0"),
@@ -160,6 +160,7 @@ async def test_two_entries_are_independent_and_push_updates_entities(
         # Older controllers report the pre-rename keys.
         ("floor_heating", "heating", "38.0"),
         ("fan_coil_heating", "idle", "38.0"),
+        ("mode_2", "idle", "38.0"),
         ("auto", "cooling", "12.0"),
         ("auto", "idle", "48.0"),
         ("unknown", "idle", "unknown"),
@@ -270,7 +271,7 @@ async def test_legacy_mode_keys_are_shown_with_current_names(
     assert hass.states.get(mode).attributes["options"] == [
         "cooling",
         "heating",
-        "mode_2",
+        "freeze_protection",
         "hot_water",
         "hot_water_cooling",
     ]

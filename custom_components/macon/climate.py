@@ -22,7 +22,7 @@ from .runtime import MaconRuntime
 MODE_MAP = {
     "cooling": HVACMode.COOL,
     "heating": HVACMode.HEAT,
-    "mode_2": HVACMode.HEAT,
+    "freeze_protection": HVACMode.HEAT,
     "mode_3": HVACMode.HEAT,
     "mode_4": HVACMode.HEAT,
     "hot_water": HVACMode.HEAT,

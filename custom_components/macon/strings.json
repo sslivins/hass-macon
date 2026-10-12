@@ -50,7 +50,7 @@
         "state": {
           "cooling": "Cooling",
           "heating": "Heating",
-          "mode_2": "Mode 2",
+          "freeze_protection": "Freeze protection",
           "mode_3": "Mode 3",
           "mode_4": "Mode 4",
           "hot_water": "Hot water",
