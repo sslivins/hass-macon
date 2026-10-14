@@ -657,3 +657,62 @@ async def test_update_install_failure_raises(
         )
 
     assert hass.states.get(update).attributes["in_progress"] is False
+
+
+async def test_temperature_sensors_carry_trends(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller-1.local")
+    tank = entity_id(hass, SENSOR_DOMAIN, "arctic-001_tank_temperature")
+    inlet = entity_id(hass, SENSOR_DOMAIN, "arctic-001_inlet_temperature")
+    outlet = entity_id(hass, SENSOR_DOMAIN, "arctic-001_outlet_temperature")
+    # Firmware before 3.2.8 sends no trends.
+    assert hass.states.get(tank).attributes["trend"] is None
+
+    mock_clients["controller-1.local"].snapshot_callback(
+        make_snapshot(
+            revision=2,
+            trends={"tank": "rising", "outlet": "steady", "inlet": "unknown"},
+        )
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get(tank).attributes["trend"] == "rising"
+    assert hass.states.get(outlet).attributes["trend"] == "steady"
+    assert hass.states.get(inlet).attributes["trend"] is None
+
+
+@pytest.mark.parametrize(
+    ("readings", "flow", "source"),
+    [
+        ({}, "unknown", "unknown"),
+        (
+            {"flow_lpm": 40, "perf_source": "external", "perf_fallback": False},
+            "40.0",
+            "external",
+        ),
+        (
+            {"flow_lpm": 40, "perf_source": "heat_pump", "perf_fallback": True},
+            "40.0",
+            "fallback",
+        ),
+        ({"flow_lpm": 40, "perf_source": "something_new"}, "40.0", "unknown"),
+    ],
+)
+async def test_performance_input_sensors(
+    hass: HomeAssistant,
+    mock_clients: dict[str, MagicMock],
+    readings: dict,
+    flow: str,
+    source: str,
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller-1.local")
+    mock_clients["controller-1.local"].snapshot_callback(
+        make_snapshot(revision=2, readings=readings)
+    )
+    await hass.async_block_till_done()
+
+    flow_id = entity_id(hass, SENSOR_DOMAIN, "arctic-001_loop_flow")
+    source_id = entity_id(hass, SENSOR_DOMAIN, "arctic-001_cop_source")
+    assert hass.states.get(flow_id).state == flow
+    assert hass.states.get(source_id).state == source

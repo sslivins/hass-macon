@@ -162,3 +162,7 @@ FAULT_CODES: tuple[str, ...] = (
     "P16",
     "r20",
 )
+
+# Where the COP's water temperatures come from: external pipe sensors, or the
+# heat pump's own sensors. "fallback" (external failing) is derived separately.
+COP_SOURCES: tuple[str, ...] = ("external", "heat_pump")

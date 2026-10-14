@@ -53,6 +53,10 @@ CONTROLLER_KEYS = {
     "restart",
 }
 
+# The controller's COP inputs: its configured loop flow and which water
+# sensors it uses. They explain the COP, so they're diagnostic too.
+PERF_INPUT_KEYS = {"loop_flow", "cop_source"}
+
 
 def _state(hass: HomeAssistant, platform: str, key: str) -> str:
     return hass.states.get(entity_id(hass, platform, f"arctic-001_{key}")).state
@@ -100,7 +104,7 @@ async def test_controller_entities_have_their_own_section(
     for key, registry_entry in by_key.items():
         if key in {"firmware_update", "restart"}:
             expected = EntityCategory.CONFIG
-        elif key in CONTROLLER_KEYS:
+        elif key in CONTROLLER_KEYS | PERF_INPUT_KEYS:
             expected = EntityCategory.DIAGNOSTIC
         else:
             expected = None

@@ -57,6 +57,17 @@
           "hot_water_cooling": "Hot water / cooling"
         }
       }
+    },
+    "sensor": {
+      "cop_source": {
+        "name": "COP source",
+        "state": {
+          "external": "External pipe sensors",
+          "heat_pump": "Heat pump sensors",
+          "fallback": "Heat pump sensors (external failing)",
+          "unknown": "Unknown"
+        }
+      }
     }
   }
 }

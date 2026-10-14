@@ -32,10 +32,15 @@ def make_snapshot(
     available: bool = True,
     error: dict | None = None,
     device_name: str | None = None,
+    readings: dict | None = None,
+    trends: dict | None = None,
 ) -> StateSnapshot:
-    """Build a representative controller snapshot."""
-    return StateSnapshot.from_dict(
-        {
+    """Build a representative controller snapshot.
+
+    ``readings`` merges into the default readings; ``trends`` adds the
+    temperature trends object, which firmware before 3.2.8 doesn't send.
+    """
+    snapshot = {
             "protocol_version": 1,
             "device_id": device_id,
             "device_name": device_name,
@@ -78,6 +83,7 @@ def make_snapshot(
                     "power_w": 1600,
                     "thermal_w": 4800,
                     "cop": 3.0,
+                    **(readings or {}),
                 },
                 "error": error
                 if error is not None
@@ -87,7 +93,9 @@ def make_snapshot(
                 },
             },
         }
-    )
+    if trends is not None:
+        snapshot["state"]["trends"] = trends
+    return StateSnapshot.from_dict(snapshot)
 
 
 def make_capabilities(device_id: str) -> ControllerCapabilities:
