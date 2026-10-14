@@ -53,6 +53,8 @@ const SENSOR_KEYS = {
 };
 
 const TEXT_KEYS = new Set(["operation", "mode", "faultCode"]);
+// Water temperatures the controller reports a trend for.
+const TREND_KEYS = ["tank", "inlet", "outlet"];
 
 // Sensor keys whose values are temperatures and therefore need unit
 // normalisation. Everything else (Hz, rpm, W, COP) is unit-agnostic.
@@ -193,7 +195,18 @@ function fmtTemp(c, unit) {
 function fmtDelta(k, unit) {
   if (k === null || k === undefined) return "--";
   const v = unit === "F" ? (k * 9) / 5 : k;
-  return `${v.toFixed(1)} ${unit === "F" ? "\u0394\u00b0F" : "K"}`;
+  return `${v.toFixed(1)} ${unit === "F" ? "\u0394\u00b0F" : "\u00b0C"}`;
+}
+
+// Same arrows as the controller's own screen and web UI.
+const TREND_ARROWS = { rising: "\u2191", falling: "\u2193", steady: "\u2192" };
+
+// The direction a water temperature is moving, from the sensor's trend
+// attribute. Null on firmware that doesn't report trends.
+function trend(hass, entityId) {
+  const st = entityId ? hass.states[entityId] : null;
+  const t = st && st.attributes ? st.attributes.trend : null;
+  return t in TREND_ARROWS ? t : null;
 }
 
 function fmtPower(w) {
@@ -401,7 +414,9 @@ class MaconHeatPumpCard extends HTMLElement {
     const flags = {};
     for (const key of Object.keys(BINARY_KEYS)) flags[key] = bool(hass, e[key]);
     const live = Object.values(e).some((id) => isLive(hass, id));
-    return { values, flags, live };
+    const trends = {};
+    for (const key of TREND_KEYS) trends[key] = trend(hass, e[key]);
+    return { values, flags, live, trends };
   }
 
   _tempUnit() {
@@ -460,15 +475,16 @@ class MaconHeatPumpCard extends HTMLElement {
     if (el && el.textContent !== text) el.textContent = text;
   }
 
-  _setTemp(id, value) {
-    this._setText(id, fmtTemp(value, this._tempUnit()));
+  _setTemp(id, value, dir = null) {
+    const arrow = value !== null && value !== undefined && dir ? ` ${TREND_ARROWS[dir]}` : "";
+    this._setText(id, fmtTemp(value, this._tempUnit()) + arrow);
     const node = this.querySelector(`#${id}`);
     if (node) node.style.fill = tempColor(value);
   }
 
   _update() {
     if (!this._built || !this._hass) return;
-    const { values: v, flags: f, live } = this._readState();
+    const { values: v, flags: f, live, trends = {} } = this._readState();
     const unit = this._tempUnit();
     const mode = live ? modeOf(v, f) : "idle";
     // Defrost runs the cycle backwards, same as cooling. An idle unit has no
@@ -499,9 +515,9 @@ class MaconHeatPumpCard extends HTMLElement {
     this._setTemp("t-hx", v.indoorCoil);
     this._setTemp("t-discharge", v.discharge);
     this._setTemp("t-suction", v.suction);
-    this._setTemp("t-inlet", v.inlet);
-    this._setTemp("t-outlet", v.outlet);
-    this._setTemp("t-tank", v.tank);
+    this._setTemp("t-inlet", v.inlet, live ? trends.inlet : null);
+    this._setTemp("t-outlet", v.outlet, live ? trends.outlet : null);
+    this._setTemp("t-tank", v.tank, live ? trends.tank : null);
 
     // Each exchanger swaps role with the reversing valve.
     this._setText("role-outdoor", heating ? "Evaporator" : "Condenser");

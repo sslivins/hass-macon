@@ -43,6 +43,9 @@ EXPECTED_EMPTY = {
     "sensor.cop": "idle",
     # No Wi-Fi drop since boot.
     "sensor.wifi_last_disconnect_reason": "no disconnect yet",
+    # Captured from firmware before the COP inputs were reported.
+    "sensor.loop_flow": "older firmware",
+    "sensor.cop_source": "older firmware",
 }
 
 

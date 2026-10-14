@@ -307,6 +307,15 @@
       'state_class': <SensorStateClass.MEASUREMENT: 'measurement'>,
       'unit': None,
     }),
+    'sensor.cop_source': dict({
+      'category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
+      'device_class': <SensorDeviceClass.ENUM: 'enum'>,
+      'enabled_by_default': True,
+      'in_logbook': True,
+      'name': 'COP source',
+      'state_class': None,
+      'unit': None,
+    }),
     'sensor.dc_voltage': dict({
       'category': None,
       'device_class': <SensorDeviceClass.VOLTAGE: 'voltage'>,
@@ -468,6 +477,15 @@
       'name': 'Last reset reason',
       'state_class': None,
       'unit': None,
+    }),
+    'sensor.loop_flow': dict({
+      'category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
+      'device_class': <SensorDeviceClass.VOLUME_FLOW_RATE: 'volume_flow_rate'>,
+      'enabled_by_default': True,
+      'in_logbook': False,
+      'name': 'Loop flow',
+      'state_class': None,
+      'unit': <UnitOfVolumeFlowRate.LITERS_PER_MINUTE: 'L/min'>,
     }),
     'sensor.operation': dict({
       'category': None,

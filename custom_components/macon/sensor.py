@@ -22,6 +22,7 @@ from homeassistant.const import (
     UnitOfInformation,
     UnitOfPower,
     UnitOfTemperature,
+    UnitOfVolumeFlowRate,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -30,6 +31,7 @@ from pymacon import ControllerCapabilities, ControllerDiagnostics, StateSnapshot
 
 from .const import (
     BUS_ROLES,
+    COP_SOURCES,
     DOMAIN,
     FAULT_CODES,
     FAULT_STATE_OK,
@@ -94,6 +96,25 @@ def _active_setpoint(snapshot: StateSnapshot) -> float | None:
     kind = setpoint_kind(state.mode, state.operation)
     return None if kind is None else getattr(state.setpoints_c, kind)
 
+
+def _trend(snapshot: StateSnapshot, key: str) -> dict[str, str | None]:
+    """Direction of a water temperature: rising, falling, steady or None.
+
+    None while the controller has too few readings, or on firmware before
+    3.2.8, which doesn't report trends.
+    """
+    trends = snapshot.state.trends
+    return {"trend": getattr(trends, key) if trends is not None else None}
+
+
+def _cop_source(snapshot: StateSnapshot) -> str | None:
+    """Where the COP's water temperatures come from."""
+    readings = snapshot.state.readings
+    if readings.perf_fallback:
+        return "fallback"
+    return _enum(readings.perf_source, COP_SOURCES)
+
+
 TEMPERATURES: tuple[MaconSensorDescription, ...] = (
     MaconSensorDescription(
         key="tank_temperature",
@@ -102,6 +123,7 @@ TEMPERATURES: tuple[MaconSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda value: value.state.temperatures_c.tank,
+        attributes_fn=lambda value: _trend(value, "tank"),
     ),
     MaconSensorDescription(
         key="outlet_temperature",
@@ -110,6 +132,7 @@ TEMPERATURES: tuple[MaconSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda value: value.state.temperatures_c.outlet,
+        attributes_fn=lambda value: _trend(value, "outlet"),
     ),
     MaconSensorDescription(
         key="inlet_temperature",
@@ -118,6 +141,7 @@ TEMPERATURES: tuple[MaconSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda value: value.state.temperatures_c.inlet,
+        attributes_fn=lambda value: _trend(value, "inlet"),
     ),
     MaconSensorDescription(
         key="outdoor_temperature",
@@ -269,6 +293,26 @@ READINGS: tuple[MaconSensorDescription, ...] = (
         name="Coefficient of performance",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda value: value.state.readings.cop,
+    ),
+    # Performance inputs, as configured on the controller. Diagnostic: they
+    # explain the COP rather than being readings in their own right. Older
+    # firmware doesn't send them, so they report unknown there.
+    MaconSensorDescription(
+        key="loop_flow",
+        name="Loop flow",
+        device_class=SensorDeviceClass.VOLUME_FLOW_RATE,
+        native_unit_of_measurement=UnitOfVolumeFlowRate.LITERS_PER_MINUTE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda value: value.state.readings.flow_lpm,
+    ),
+    MaconSensorDescription(
+        key="cop_source",
+        translation_key="cop_source",
+        name="COP source",
+        device_class=SensorDeviceClass.ENUM,
+        options=[*COP_SOURCES, "fallback", STATE_UNKNOWN_ENUM],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=_cop_source,
     ),
     MaconSensorDescription(
         key="fan_level",
