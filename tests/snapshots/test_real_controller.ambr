@@ -289,6 +289,15 @@
       'state_class': <SensorStateClass.MEASUREMENT: 'measurement'>,
       'unit': <UnitOfFrequency.HERTZ: 'Hz'>,
     }),
+    'sensor.cooling_energy': dict({
+      'category': None,
+      'device_class': <SensorDeviceClass.ENERGY: 'energy'>,
+      'enabled_by_default': True,
+      'in_logbook': False,
+      'name': 'Cooling energy',
+      'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
+      'unit': <UnitOfEnergy.KILO_WATT_HOUR: 'kWh'>,
+    }),
     'sensor.cooling_setpoint': dict({
       'category': None,
       'device_class': <SensorDeviceClass.TEMPERATURE: 'temperature'>,
@@ -334,6 +343,15 @@
       'state_class': <SensorStateClass.MEASUREMENT: 'measurement'>,
       'unit': <UnitOfTemperature.CELSIUS: '°C'>,
     }),
+    'sensor.electrical_energy': dict({
+      'category': None,
+      'device_class': <SensorDeviceClass.ENERGY: 'energy'>,
+      'enabled_by_default': True,
+      'in_logbook': False,
+      'name': 'Electrical energy',
+      'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
+      'unit': <UnitOfEnergy.KILO_WATT_HOUR: 'kWh'>,
+    }),
     'sensor.expansion_valve_position': dict({
       'category': None,
       'device_class': None,
@@ -370,6 +388,15 @@
       'state_class': None,
       'unit': None,
     }),
+    'sensor.heating_energy': dict({
+      'category': None,
+      'device_class': <SensorDeviceClass.ENERGY: 'energy'>,
+      'enabled_by_default': True,
+      'in_logbook': False,
+      'name': 'Heating energy',
+      'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
+      'unit': <UnitOfEnergy.KILO_WATT_HOUR: 'kWh'>,
+    }),
     'sensor.heating_setpoint': dict({
       'category': None,
       'device_class': <SensorDeviceClass.TEMPERATURE: 'temperature'>,
@@ -387,6 +414,15 @@
       'name': 'Hostname',
       'state_class': None,
       'unit': None,
+    }),
+    'sensor.hot_water_energy': dict({
+      'category': None,
+      'device_class': <SensorDeviceClass.ENERGY: 'energy'>,
+      'enabled_by_default': True,
+      'in_logbook': False,
+      'name': 'Hot water energy',
+      'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
+      'unit': <UnitOfEnergy.KILO_WATT_HOUR: 'kWh'>,
     }),
     'sensor.hot_water_setpoint': dict({
       'category': None,

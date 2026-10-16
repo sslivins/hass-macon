@@ -34,11 +34,13 @@ def make_snapshot(
     device_name: str | None = None,
     readings: dict | None = None,
     trends: dict | None = None,
+    energy: dict | None = None,
 ) -> StateSnapshot:
     """Build a representative controller snapshot.
 
     ``readings`` merges into the default readings; ``trends`` adds the
-    temperature trends object, which firmware before 3.2.8 doesn't send.
+    temperature trends object, which firmware before 3.2.8 doesn't send;
+    ``energy`` adds the lifetime totals, which firmware before 3.4.0 doesn't.
     """
     snapshot = {
             "protocol_version": 1,
@@ -95,6 +97,8 @@ def make_snapshot(
         }
     if trends is not None:
         snapshot["state"]["trends"] = trends
+    if energy is not None:
+        snapshot["state"]["energy"] = energy
     return StateSnapshot.from_dict(snapshot)
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -18,6 +19,7 @@ from homeassistant.const import (
     EntityCategory,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
+    UnitOfEnergy,
     UnitOfFrequency,
     UnitOfInformation,
     UnitOfPower,
@@ -27,7 +29,13 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pymacon import ControllerCapabilities, ControllerDiagnostics, StateSnapshot
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
+from pymacon import (
+    ControllerCapabilities,
+    ControllerDiagnostics,
+    EnergyTotals,
+    StateSnapshot,
+)
 
 from .const import (
     BUS_ROLES,
@@ -372,6 +380,37 @@ EXTRA_TEMPERATURES: tuple[MaconSensorDescription, ...] = tuple(
 
 DESCRIPTIONS = TEMPERATURES + SETPOINTS + READINGS + EXTRA_TEMPERATURES
 
+
+@dataclass(frozen=True, kw_only=True)
+class MaconEnergySensorDescription(SensorEntityDescription):
+    value_fn: Callable[[EnergyTotals], int]
+
+
+def _energy(
+    key: str, name: str, value_fn: Callable[[EnergyTotals], int]
+) -> MaconEnergySensorDescription:
+    return MaconEnergySensorDescription(
+        key=key,
+        name=name,
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=1,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=value_fn,
+    )
+
+
+# Lifetime meters kept by the controller (firmware 3.4.0+), for the Energy
+# dashboard. Heat delivered in each mode is heat moved into (or, for cooling,
+# out of) the water.
+ENERGY_SENSORS: tuple[MaconEnergySensorDescription, ...] = (
+    _energy("electrical_energy", "Electrical energy", lambda e: e.electrical_wh),
+    _energy("heating_energy", "Heating energy", lambda e: e.heating_wh),
+    _energy("cooling_energy", "Cooling energy", lambda e: e.cooling_wh),
+    _energy("hot_water_energy", "Hot water energy", lambda e: e.hot_water_wh),
+)
+
 INFO_SENSORS: tuple[MaconInfoSensorDescription, ...] = (
     MaconInfoSensorDescription(
         key="ip_address",
@@ -556,6 +595,9 @@ async def async_setup_entry(
         MaconSensor(runtime, description) for description in DESCRIPTIONS
     ]
     entities.extend(
+        MaconEnergySensor(runtime, description) for description in ENERGY_SENSORS
+    )
+    entities.extend(
         MaconInfoSensor(runtime, description)
         for description in INFO_SENSORS
     )
@@ -610,6 +652,93 @@ class MaconSensor(MaconEntity, SensorEntity):
         if snapshot is None:
             return None
         return attributes_fn(snapshot)
+
+
+@dataclass
+class _EnergyRestoreData(ExtraStoredData):
+    reset_id: str | None
+    wh: int
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"reset_id": self.reset_id, "wh": self.wh}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> _EnergyRestoreData | None:
+        reset_id = data.get("reset_id")
+        wh = data.get("wh")
+        if reset_id is not None and not isinstance(reset_id, str):
+            return None
+        if isinstance(wh, bool) or not isinstance(wh, int) or wh < 0:
+            return None
+        return cls(reset_id, wh)
+
+
+class MaconEnergySensor(MaconEntity, SensorEntity, RestoreEntity):
+    """Lifetime energy meter that never runs backwards by accident.
+
+    The controller saves today's running total every few minutes, so a reboot
+    can hand back a slightly smaller figure. A long-term statistics meter would
+    read that dip as a reset and double-count, so the last value is held until
+    the controller catches up. A different reset_id means the controller's
+    history really was wiped, and the meter is allowed to start again. A
+    reset_id appearing for the first time is the same meter (the controller
+    only assigns one once its first day is saved).
+    """
+
+    entity_description: MaconEnergySensorDescription
+
+    def __init__(
+        self,
+        runtime: MaconRuntime,
+        description: MaconEnergySensorDescription,
+    ) -> None:
+        super().__init__(runtime, description.key)
+        self.entity_description = description
+        self._reset_id: str | None = None
+        self._wh: int | None = None
+        self._reporting = False
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        extra = await self.async_get_last_extra_data()
+        if extra is not None:
+            restored = _EnergyRestoreData.from_dict(extra.as_dict())
+            if restored is not None:
+                self._reset_id = restored.reset_id
+                self._wh = restored.wh
+        self._track()
+
+    def _async_runtime_updated(self) -> None:
+        self._track()
+        super()._async_runtime_updated()
+
+    def _track(self) -> None:
+        snapshot = self.runtime.snapshot
+        energy = snapshot.state.energy if snapshot is not None else None
+        # Older firmware, or the controller hasn't loaded its history yet.
+        self._reporting = energy is not None
+        if energy is None:
+            return
+        wh = self.entity_description.value_fn(energy)
+        same_meter = self._reset_id is None or energy.reset_id == self._reset_id
+        if same_meter and self._wh is not None:
+            wh = max(wh, self._wh)
+        self._wh = wh
+        self._reset_id = energy.reset_id
+
+    @property
+    def native_value(self) -> int | None:
+        return self._wh if self._reporting else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None]:
+        return {"reset_id": self._reset_id}
+
+    @property
+    def extra_restore_state_data(self) -> _EnergyRestoreData | None:
+        if self._wh is None:
+            return None
+        return _EnergyRestoreData(self._reset_id, self._wh)
 
 
 class MaconInfoSensor(MaconControllerEntity, SensorEntity):
