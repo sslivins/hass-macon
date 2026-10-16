@@ -12,7 +12,7 @@ from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.update import DOMAIN as UPDATE_DOMAIN
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PORT
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -26,7 +26,10 @@ from pymacon import (
     OtaReleaseInfo,
     OtaStatus,
 )
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    mock_restore_cache_with_extra_data,
+)
 
 from custom_components.macon.const import (
     CONF_DEVICE_ID,
@@ -716,3 +719,72 @@ async def test_performance_input_sensors(
     source_id = entity_id(hass, SENSOR_DOMAIN, "arctic-001_cop_source")
     assert hass.states.get(flow_id).state == flow
     assert hass.states.get(source_id).state == source
+
+def _energy(reset_id: str | None, electrical: int, heating: int = 0) -> dict:
+    return {
+        "reset_id": reset_id,
+        "electrical_wh": electrical,
+        "thermal_wh": {"heating": heating, "cooling": 0, "hot_water": 0},
+    }
+
+
+async def _push_energy(
+    hass: HomeAssistant, client: MagicMock, revision: int, energy: dict | None
+) -> None:
+    client.snapshot_callback(make_snapshot(revision=revision, energy=energy))
+    await hass.async_block_till_done()
+
+
+async def test_energy_sensors_follow_controller_totals(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller-1.local")
+    client = mock_clients["controller-1.local"]
+    electrical = entity_id(hass, SENSOR_DOMAIN, "arctic-001_electrical_energy")
+    heating = entity_id(hass, SENSOR_DOMAIN, "arctic-001_heating_energy")
+    # Firmware before 3.4.0 sends no totals.
+    assert hass.states.get(electrical).state == "unknown"
+
+    await _push_energy(hass, client, 2, _energy(None, 16402, 18692))
+    state = hass.states.get(electrical)
+    assert state.state == "16.402"
+    assert state.attributes["unit_of_measurement"] == "kWh"
+    assert state.attributes["state_class"] == "total_increasing"
+    assert state.attributes["reset_id"] is None
+    assert hass.states.get(heating).state == "18.692"
+
+    # The first saved day assigns a reset_id: still the same meter, so a
+    # dip from a reboot is held rather than read as a meter reset.
+    await _push_energy(hass, client, 3, _energy("1a2b3c4d", 16000))
+    assert hass.states.get(electrical).state == "16.402"
+    assert hass.states.get(electrical).attributes["reset_id"] == "1a2b3c4d"
+    await _push_energy(hass, client, 4, _energy("1a2b3c4d", 16500))
+    assert hass.states.get(electrical).state == "16.5"
+
+    # History loading after a reboot: unknown, then carries on.
+    await _push_energy(hass, client, 5, None)
+    assert hass.states.get(electrical).state == "unknown"
+    await _push_energy(hass, client, 6, _energy("1a2b3c4d", 16490))
+    assert hass.states.get(electrical).state == "16.5"
+
+    # A new reset_id means the controller's history was wiped.
+    await _push_energy(hass, client, 7, _energy("99999999", 10))
+    assert hass.states.get(electrical).state == "0.01"
+    assert hass.states.get(electrical).attributes["reset_id"] == "99999999"
+
+
+async def test_energy_sensor_holds_restored_total_across_restart(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    restored = "sensor.macon_heat_pump_controller_arctic_001_electrical_energy"
+    mock_restore_cache_with_extra_data(
+        hass,
+        ((State(restored, "16.5"), {"reset_id": "1a2b3c4d", "wh": 16500}),),
+    )
+    await setup_entry(hass, "arctic-001", "controller-1.local")
+    client = mock_clients["controller-1.local"]
+    electrical = entity_id(hass, SENSOR_DOMAIN, "arctic-001_electrical_energy")
+    assert electrical == restored
+
+    await _push_energy(hass, client, 2, _energy("1a2b3c4d", 16400))
+    assert hass.states.get(electrical).state == "16.5"

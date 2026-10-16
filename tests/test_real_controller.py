@@ -46,6 +46,11 @@ EXPECTED_EMPTY = {
     # Captured from firmware before the COP inputs were reported.
     "sensor.loop_flow": "older firmware",
     "sensor.cop_source": "older firmware",
+    # Captured from firmware before the energy totals were reported.
+    "sensor.electrical_energy": "older firmware",
+    "sensor.heating_energy": "older firmware",
+    "sensor.cooling_energy": "older firmware",
+    "sensor.hot_water_energy": "older firmware",
 }
 
 

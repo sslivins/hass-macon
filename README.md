@@ -69,6 +69,17 @@ controller has not read the register — for the valve, `0` steps is a real stat
 meaning fully closed. Reading these requires controller firmware new enough to
 publish them; older firmware simply leaves the entities `unknown`.
 
+**Electrical energy**, **Heating energy**, **Cooling energy** and **Hot water
+energy** are lifetime meters kept by the controller (firmware 3.4.0 or later),
+in kWh, ready to add to Home Assistant's Energy dashboard (electricity used,
+and heat delivered by each mode). The controller saves its running total every
+few minutes, so after a reboot it can report slightly less than before; the
+sensors hold their last value until it catches up rather than letting the
+Energy dashboard read the dip as a meter reset. They only start again from
+zero when the controller's history is really wiped (a new `reset_id`
+attribute, for example after a factory reset). Older firmware leaves them
+`unknown`.
+
 A `macon_fault` event is fired whenever a fault begins, clears, or changes:
 
 ```yaml
