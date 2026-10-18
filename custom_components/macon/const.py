@@ -169,3 +169,18 @@ FAULT_CODES: tuple[str, ...] = (
 # Where the COP's water temperatures come from: external pipe sensors, or the
 # heat pump's own sensors. "fallback" (external failing) is derived separately.
 COP_SOURCES: tuple[str, ...] = ("external", "heat_pump")
+
+
+def controller_event_entity(event_type: str) -> tuple[str, str]:
+    """Return the (platform, key) of the entity a controller event is shown on.
+
+    The activity log leaves out measurement sensors, so the event is linked
+    to a state-like entity: resets to the reset reason, heat pump link loss to
+    the RS485 problem sensor and everything network-related to the push
+    connection.
+    """
+    if event_type in ("application_crash", "watchdog_reset", "brownout_reset"):
+        return "sensor", "last_reset_reason"
+    if event_type == "disconnected":
+        return "binary_sensor", "bus_problem"
+    return "binary_sensor", "push_connected"

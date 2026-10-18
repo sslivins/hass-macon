@@ -17,7 +17,11 @@ from pytest_homeassistant_custom_component.components.recorder.common import (
     async_wait_recording_done,
 )
 
-from custom_components.macon.const import DIAGNOSTICS_INTERVAL, DOMAIN
+from custom_components.macon.const import (
+    DIAGNOSTICS_INTERVAL,
+    DOMAIN,
+    controller_event_entity,
+)
 from custom_components.macon.logbook import async_describe_events
 
 from .conftest import make_diagnostics, make_snapshot
@@ -203,13 +207,9 @@ async def test_controller_events_are_described(
             },
         )
     )
-    expected_key = (
-        "arctic-001_wifi_disconnect_count"
-        if event_type.startswith("wifi_")
-        else "arctic-001_last_reset_reason"
-    )
+    platform, key = controller_event_entity(event_type)
     assert entry["message"] == message
-    assert entry["entity_id"] == entity_id(hass, SENSOR_DOMAIN, expected_key)
+    assert entry["entity_id"] == entity_id(hass, platform, f"arctic-001_{key}")
 
 
 async def test_late_controller_event_says_when_it_happened(
@@ -255,7 +255,7 @@ async def test_controller_event_appears_in_activity_log(
     assert await async_setup_component(hass, "logbook", {})
     await setup_entry(hass, "arctic-001", "controller.local")
     client = mock_clients["controller.local"]
-    wifi = entity_id(hass, SENSOR_DOMAIN, "arctic-001_wifi_disconnect_count")
+    wifi = entity_id(hass, "binary_sensor", "arctic-001_push_connected")
     start = dt_util.utcnow()
     lost = {
         "type": "wifi_lost",
@@ -290,4 +290,4 @@ async def test_controller_event_appears_in_activity_log(
     assert any(
         message and message.startswith("lost Wi-Fi for over a minute (signal lost)")
         for message in messages
-    )
+    ), response["result"]

@@ -35,6 +35,7 @@ from .const import (
     EVENT_MACON_CONTROLLER,
     EVENT_MACON_FAULT,
     SPLIT_HEAT_PUMP_IDENTIFIER_SUFFIX,
+    controller_event_entity,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -439,10 +440,9 @@ class MaconRuntime:
                 "timestamp": (event.timestamp.isoformat() if event.timestamp else None),
                 "details": dict(event.details),
             }
-            # Link Wi-Fi events to the Wi-Fi disconnects sensor and the rest
-            # to the reset reason, so they show on the device's pages.
-            key = "wifi_disconnect_count" if event.type.startswith("wifi_") else "last_reset_reason"
-            linked = registry.async_get_entity_id(SENSOR_DOMAIN, DOMAIN, f"{self.device_id}_{key}")
+            # Link the event to an entity so it shows on the device's pages.
+            platform, key = controller_event_entity(event.type)
+            linked = registry.async_get_entity_id(platform, DOMAIN, f"{self.device_id}_{key}")
             if linked is not None:
                 data["entity_id"] = linked
             self.hass.bus.async_fire(EVENT_MACON_CONTROLLER, data)

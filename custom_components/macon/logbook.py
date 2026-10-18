@@ -17,7 +17,12 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, EVENT_MACON_CONTROLLER, EVENT_MACON_FAULT
+from .const import (
+    DOMAIN,
+    EVENT_MACON_CONTROLLER,
+    EVENT_MACON_FAULT,
+    controller_event_entity,
+)
 
 # An event the controller recorded more than this long before Home Assistant
 # saw it (an outage cut the two off) also says when it really happened.
@@ -137,7 +142,7 @@ def async_describe_events(
 ) -> None:
     """Describe Macon events so they are explained in Activity."""
 
-    def _entry(data: Mapping[str, Any], fallback_key: str) -> dict[str, str]:
+    def _entry(data: Mapping[str, Any], platform: str, fallback_key: str) -> dict[str, str]:
         controller_id = data.get("device_id")
         name = "Heat pump"
         entry: dict[str, str] = {}
@@ -145,7 +150,7 @@ def async_describe_events(
         # Events recorded before entity_id was added still get linked.
         linked = data.get("entity_id") or (
             entity_registry.async_get_entity_id(
-                SENSOR_DOMAIN, DOMAIN, f"{controller_id}_{fallback_key}"
+                platform, DOMAIN, f"{controller_id}_{fallback_key}"
             )
             if controller_id
             else None
@@ -164,19 +169,15 @@ def async_describe_events(
 
     @callback
     def async_describe_fault(event: Event) -> dict[str, str]:
-        entry = _entry(event.data, "fault_code")
+        entry = _entry(event.data, SENSOR_DOMAIN, "fault_code")
         entry[LOGBOOK_ENTRY_MESSAGE] = _fault_message(event.data)
         return entry
 
     @callback
     def async_describe_controller(event: Event) -> dict[str, str]:
         data = event.data
-        fallback = (
-            "wifi_disconnect_count"
-            if str(data.get("type") or "").startswith("wifi_")
-            else "last_reset_reason"
-        )
-        entry = _entry(data, fallback)
+        platform, key = controller_event_entity(str(data.get("type") or ""))
+        entry = _entry(data, platform, key)
         entry[LOGBOOK_ENTRY_MESSAGE] = _controller_message(data) + _late_suffix(data, event)
         return entry
 
