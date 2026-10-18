@@ -14,7 +14,7 @@ from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.update import DOMAIN as UPDATE_DOMAIN
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
@@ -655,3 +655,100 @@ async def test_device_is_created_with_the_controller_friendly_name(
     )
     await setup_entry(hass, "arctic-001", "controller.local")
     assert _device(hass).name == "Shop heat pump"
+
+
+WIFI_LOST = {
+    "type": "wifi_lost",
+    "category": "problems",
+    "boot_id": 7,
+    "uptime_ms": 90_000,
+    "timestamp": 1792000060,
+    "payload": 201,
+    "reason": 201,
+    "reason_key": "network_not_found",
+}
+WIFI_RESTORED = {
+    "type": "wifi_restored",
+    "category": "problems",
+    "boot_id": 7,
+    "uptime_ms": 120_000,
+    "timestamp": 1792000154,
+    "payload": 94,
+    "down_s": 94,
+}
+CRASH = {
+    "type": "application_crash",
+    "category": "problems",
+    "boot_id": 8,
+    "uptime_ms": 2_000,
+    "timestamp": 0,
+    "payload": 0,
+}
+
+
+async def _poll(hass: HomeAssistant, client: MagicMock, events, step: int) -> None:
+    client.async_fetch_diagnostics.return_value = make_diagnostics(events=events)
+    async_fire_time_changed(hass, dt_util.utcnow() + DIAGNOSTICS_INTERVAL * step)
+    await hass.async_block_till_done()
+
+
+async def test_wifi_drop_sensors(hass: HomeAssistant, mock_clients: dict[str, MagicMock]) -> None:
+    await setup_entry(hass, "arctic-001", "controller.local")
+    assert _state(hass, SENSOR_DOMAIN, "wifi_drops_short") == "2"
+    assert _state(hass, SENSOR_DOMAIN, "wifi_drops_long") == "1"
+
+
+async def test_controller_events_fire_once_after_a_baseline(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    fired: list[dict] = []
+    hass.bus.async_listen(
+        "macon_controller_event", callback(lambda event: fired.append(dict(event.data)))
+    )
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    await _poll(hass, client, [WIFI_LOST], 1)
+    # History already in the log when Home Assistant starts isn't replayed.
+    assert fired == []
+
+    # Newest first, as the controller reports them; fired oldest first.
+    await _poll(hass, client, [CRASH, WIFI_RESTORED, WIFI_LOST], 2)
+    assert [event["type"] for event in fired] == [
+        "wifi_restored",
+        "application_crash",
+    ]
+    restored, crash = fired
+    assert restored["device_id"] == "arctic-001"
+    assert restored["category"] == "problems"
+    assert restored["details"] == {"down_s": 94}
+    # Recorded long before this poll (the fixture's clock is in the past).
+    assert restored["reported_late"] is True
+    assert crash["reported_late"] is False
+    assert restored["timestamp"] == "2026-10-14T17:49:14+00:00"
+    assert restored["entity_id"] == entity_id(
+        hass, BINARY_SENSOR_DOMAIN, "arctic-001_push_connected"
+    )
+    assert crash["timestamp"] is None
+    assert crash["entity_id"] == entity_id(hass, SENSOR_DOMAIN, "arctic-001_last_reset_reason")
+
+    # The same list again announces nothing new.
+    await _poll(hass, client, [CRASH, WIFI_RESTORED, WIFI_LOST], 3)
+    assert len(fired) == 2
+
+
+async def test_firmware_without_events_keeps_the_baseline(
+    hass: HomeAssistant, mock_clients: dict[str, MagicMock]
+) -> None:
+    fired: list[dict] = []
+    hass.bus.async_listen(
+        "macon_controller_event", callback(lambda event: fired.append(dict(event.data)))
+    )
+    await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
+    # The default diagnostics carry no event list (older firmware).
+    assert client.async_fetch_diagnostics.return_value.events is None
+    await _poll(hass, client, None, 1)
+    await _poll(hass, client, [WIFI_LOST], 2)
+    await _poll(hass, client, None, 3)
+    await _poll(hass, client, [WIFI_RESTORED, WIFI_LOST], 4)
+    assert [event["type"] for event in fired] == ["wifi_restored"]

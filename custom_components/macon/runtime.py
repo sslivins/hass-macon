@@ -32,8 +32,11 @@ from yarl import URL
 from .const import (
     DIAGNOSTICS_INTERVAL,
     DOMAIN,
+    EVENT_MACON_CONTROLLER,
     EVENT_MACON_FAULT,
+    LATE_CONTROLLER_EVENT,
     SPLIT_HEAT_PUMP_IDENTIFIER_SUFFIX,
+    controller_event_entity,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,6 +77,9 @@ class MaconRuntime:
         self._diagnostics_refreshing = False
         self._diagnostics_requested_boot: str | None = None
         self._unsubscribe_diagnostics_timer: Callable[[], None] | None = None
+        # Keys of the controller events in the last diagnostics poll; None
+        # until the first poll sets the baseline.
+        self._seen_controller_events: set[tuple[int, int, str]] | None = None
 
     @property
     def available(self) -> bool:
@@ -272,6 +278,7 @@ class MaconRuntime:
             self._async_track_boot_time(diagnostics)
             self.diagnostics = diagnostics
             self.diagnostics_ok = True
+            self._async_fire_controller_events(diagnostics)
         finally:
             self._diagnostics_refreshing = False
         self._async_notify_diagnostics_listeners()
@@ -403,6 +410,47 @@ class MaconRuntime:
         if fault_entity is not None:
             data["entity_id"] = fault_entity
         self.hass.bus.async_fire(EVENT_MACON_FAULT, data)
+
+    @callback
+    def _async_fire_controller_events(self, diagnostics: ControllerDiagnostics) -> None:
+        """Fire one event per controller problem not seen in the last poll.
+
+        The controller keeps its event log across outages and reboots, so an
+        outage that cut Home Assistant off is reported once it can reach the
+        controller again.
+        """
+        events = diagnostics.events
+        if events is None:
+            # Firmware without the event list; keep any baseline for when it
+            # comes back.
+            return
+        seen = self._seen_controller_events
+        self._seen_controller_events = {event.key for event in events}
+        if seen is None:
+            # Establish a baseline without firing, so history is not
+            # re-announced every time Home Assistant starts.
+            return
+        registry = er.async_get(self.hass)
+        for event in reversed(events):  # oldest first
+            if event.key in seen:
+                continue
+            data: dict[str, object] = {
+                "device_id": self.device_id,
+                "type": event.type,
+                "category": event.category,
+                "timestamp": (event.timestamp.isoformat() if event.timestamp else None),
+                "details": dict(event.details),
+                "reported_late": (
+                    event.timestamp is not None
+                    and dt_util.utcnow() - event.timestamp > LATE_CONTROLLER_EVENT
+                ),
+            }
+            # Link the event to an entity so it shows on the device's pages.
+            platform, key = controller_event_entity(event.type)
+            linked = registry.async_get_entity_id(platform, DOMAIN, f"{self.device_id}_{key}")
+            if linked is not None:
+                data["entity_id"] = linked
+            self.hass.bus.async_fire(EVENT_MACON_CONTROLLER, data)
 
     @callback
     def _async_status_received(self, status: ClientStatus) -> None:
