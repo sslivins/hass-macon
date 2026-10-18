@@ -114,10 +114,12 @@ def _late_suffix(data: Mapping[str, Any], event: Event) -> str:
     happened = dt_util.parse_datetime(raw)
     if happened is None:
         return ""
-    if (event.time_fired - happened).total_seconds() <= LATE_EVENT_SECONDS:
+    # The activity log passes a lightweight event that only has time_fired_ts.
+    fired = dt_util.utc_from_timestamp(event.time_fired_ts)
+    if (fired - happened).total_seconds() <= LATE_EVENT_SECONDS:
         return ""
     local: datetime = dt_util.as_local(happened)
-    if local.date() == dt_util.as_local(event.time_fired).date():
+    if local.date() == dt_util.as_local(fired).date():
         return f" (at {local:%H:%M})"
     return f" (at {local:%Y-%m-%d %H:%M})"
 

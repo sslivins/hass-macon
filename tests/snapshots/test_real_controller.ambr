@@ -640,7 +640,8 @@
       'state_class': <SensorStateClass.TOTAL_INCREASING: 'total_increasing'>,
       'unit': None,
     }),
-    'sensor.wifi_last_disconnect_reason': dict({      'category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
+    'sensor.wifi_last_disconnect_reason': dict({
+      'category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
       'device_class': None,
       'enabled_by_default': False,
       'in_logbook': True,

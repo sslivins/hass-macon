@@ -703,10 +703,9 @@ async def test_controller_events_fire_once_after_a_baseline(
 ) -> None:
     fired: list[dict] = []
     hass.bus.async_listen("macon_controller_event", lambda event: fired.append(dict(event.data)))
-    client = mock_clients["controller.local"]
-    client_events = [WIFI_LOST]
     await setup_entry(hass, "arctic-001", "controller.local")
-    await _poll(hass, client, client_events, 1)
+    client = mock_clients["controller.local"]
+    await _poll(hass, client, [WIFI_LOST], 1)
     # History already in the log when Home Assistant starts isn't replayed.
     assert fired == []
 
@@ -737,8 +736,8 @@ async def test_firmware_without_events_keeps_the_baseline(
 ) -> None:
     fired: list[dict] = []
     hass.bus.async_listen("macon_controller_event", lambda event: fired.append(dict(event.data)))
-    client = mock_clients["controller.local"]
     await setup_entry(hass, "arctic-001", "controller.local")
+    client = mock_clients["controller.local"]
     # The default diagnostics carry no event list (older firmware).
     assert client.async_fetch_diagnostics.return_value.events is None
     await _poll(hass, client, None, 1)
