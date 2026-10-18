@@ -24,10 +24,6 @@ from .const import (
     controller_event_entity,
 )
 
-# An event the controller recorded more than this long before Home Assistant
-# saw it (an outage cut the two off) also says when it really happened.
-LATE_EVENT_SECONDS = 120
-
 WIFI_REASONS = {
     "signal_lost": "signal lost",
     "network_not_found": "network not found",
@@ -112,23 +108,16 @@ def _controller_message(data: Mapping[str, Any]) -> str:
     return event_type.replace("_", " ") or "reported a problem"
 
 
-def _late_suffix(data: Mapping[str, Any], event: Event) -> str:
+def _late_suffix(data: Mapping[str, Any]) -> str:
+    """Say when it happened if Home Assistant only learned of it later."""
     raw = data.get("timestamp")
-    if not isinstance(raw, str):
+    if not data.get("reported_late") or not isinstance(raw, str):
         return ""
     happened = dt_util.parse_datetime(raw)
     if happened is None:
         return ""
-    # The activity log passes a lightweight event with time_fired_ts; a real
-    # Event has time_fired_timestamp.
-    fired_ts = getattr(event, "time_fired_ts", None)
-    if fired_ts is None:
-        fired_ts = event.time_fired_timestamp
-    fired = dt_util.utc_from_timestamp(fired_ts)
-    if (fired - happened).total_seconds() <= LATE_EVENT_SECONDS:
-        return ""
     local: datetime = dt_util.as_local(happened)
-    if local.date() == dt_util.as_local(fired).date():
+    if local.date() == dt_util.now().date():
         return f" (at {local:%H:%M})"
     return f" (at {local:%Y-%m-%d %H:%M})"
 
@@ -178,7 +167,7 @@ def async_describe_events(
         data = event.data
         platform, key = controller_event_entity(str(data.get("type") or ""))
         entry = _entry(data, platform, key)
-        entry[LOGBOOK_ENTRY_MESSAGE] = _controller_message(data) + _late_suffix(data, event)
+        entry[LOGBOOK_ENTRY_MESSAGE] = _controller_message(data) + _late_suffix(data)
         return entry
 
     async_describe_event(DOMAIN, EVENT_MACON_FAULT, async_describe_fault)

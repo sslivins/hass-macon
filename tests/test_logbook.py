@@ -225,10 +225,11 @@ async def test_late_controller_event_says_when_it_happened(
             "type": "wifi_lost",
             "details": {},
             "timestamp": happened.isoformat(),
+            "reported_late": True,
         },
     )
     local = dt_util.as_local(happened)
-    if local.date() == dt_util.as_local(late.time_fired).date():
+    if local.date() == dt_util.now().date():
         when = f"{local:%H:%M}"
     else:
         when = f"{local:%Y-%m-%d %H:%M}"
@@ -241,6 +242,7 @@ async def test_late_controller_event_says_when_it_happened(
             "type": "wifi_lost",
             "details": {},
             "timestamp": dt_util.utcnow().isoformat(),
+            "reported_late": False,
         },
     )
     assert describe(prompt)["message"] == "lost Wi-Fi for over a minute"
@@ -264,7 +266,8 @@ async def test_controller_event_appears_in_activity_log(
         "uptime_ms": 90_000,
         "timestamp": int(start.timestamp()),
         "payload": 2,
-        "details": {"reason": 2, "reason_key": "signal_lost"},
+        "reason": 2,
+        "reason_key": "signal_lost",
     }
 
     client.async_fetch_diagnostics.return_value = make_diagnostics(events=[])

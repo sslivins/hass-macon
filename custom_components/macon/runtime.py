@@ -34,6 +34,7 @@ from .const import (
     DOMAIN,
     EVENT_MACON_CONTROLLER,
     EVENT_MACON_FAULT,
+    LATE_CONTROLLER_EVENT,
     SPLIT_HEAT_PUMP_IDENTIFIER_SUFFIX,
     controller_event_entity,
 )
@@ -439,6 +440,10 @@ class MaconRuntime:
                 "category": event.category,
                 "timestamp": (event.timestamp.isoformat() if event.timestamp else None),
                 "details": dict(event.details),
+                "reported_late": (
+                    event.timestamp is not None
+                    and dt_util.utcnow() - event.timestamp > LATE_CONTROLLER_EVENT
+                ),
             }
             # Link the event to an entity so it shows on the device's pages.
             platform, key = controller_event_entity(event.type)

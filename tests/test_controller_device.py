@@ -664,7 +664,8 @@ WIFI_LOST = {
     "uptime_ms": 90_000,
     "timestamp": 1792000060,
     "payload": 201,
-    "details": {"reason": 201, "reason_key": "network_not_found"},
+    "reason": 201,
+    "reason_key": "network_not_found",
 }
 WIFI_RESTORED = {
     "type": "wifi_restored",
@@ -673,7 +674,7 @@ WIFI_RESTORED = {
     "uptime_ms": 120_000,
     "timestamp": 1792000154,
     "payload": 94,
-    "details": {"down_s": 94},
+    "down_s": 94,
 }
 CRASH = {
     "type": "application_crash",
@@ -682,7 +683,6 @@ CRASH = {
     "uptime_ms": 2_000,
     "timestamp": 0,
     "payload": 0,
-    "details": {},
 }
 
 
@@ -721,6 +721,9 @@ async def test_controller_events_fire_once_after_a_baseline(
     assert restored["device_id"] == "arctic-001"
     assert restored["category"] == "problems"
     assert restored["details"] == {"down_s": 94}
+    # Recorded long before this poll (the fixture's clock is in the past).
+    assert restored["reported_late"] is True
+    assert crash["reported_late"] is False
     assert restored["timestamp"] == "2026-10-14T17:49:14+00:00"
     assert restored["entity_id"] == entity_id(
         hass, BINARY_SENSOR_DOMAIN, "arctic-001_push_connected"

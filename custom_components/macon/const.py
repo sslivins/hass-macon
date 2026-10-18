@@ -24,6 +24,9 @@ EVENT_MACON_FAULT = "macon_fault"
 # Controller problems from its event log (Wi-Fi/network outages, crashes,
 # resets), fired once Home Assistant sees them in a diagnostics poll.
 EVENT_MACON_CONTROLLER = "macon_controller_event"
+# A controller event recorded more than this long before Home Assistant saw it
+# (an outage cut the two off) also says when it really happened.
+LATE_CONTROLLER_EVENT = timedelta(minutes=2)
 
 # 0.8.0-0.8.3 split each entry into a controller device and a heat-pump device
 # keyed by ``<device_id>:heat_pump``; setup merges them back into one.
