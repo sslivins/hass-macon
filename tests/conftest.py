@@ -152,6 +152,7 @@ def make_diagnostics(
     safe_mode: bool = False,
     time_synced: bool = True,
     rs485: dict | None = None,
+    events: list[dict] | None = None,
 ) -> ControllerDiagnostics:
     """Build a representative controller diagnostics document."""
     return ControllerDiagnostics.from_dict(
@@ -180,6 +181,7 @@ def make_diagnostics(
                     "rssi_dbm": -61,
                     "disconnect_count": 3,
                     "last_disconnect_reason": 8,
+                    "drops": {"total": 3, "short": 2, "long": 1},
                 },
                 "time": {"synced": time_synced},
                 "ota": {"busy": False, "pending_verify": False},
@@ -196,6 +198,7 @@ def make_diagnostics(
                     "writes_ok": 7,
                     "writes_failed": 1,
                 },
+                **({"events": events} if events is not None else {}),
             },
         }
     )

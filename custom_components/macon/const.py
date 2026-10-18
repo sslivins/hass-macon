@@ -21,6 +21,9 @@ PLATFORMS = [
 ]
 
 EVENT_MACON_FAULT = "macon_fault"
+# Controller problems from its event log (Wi-Fi/network outages, crashes,
+# resets), fired once Home Assistant sees them in a diagnostics poll.
+EVENT_MACON_CONTROLLER = "macon_controller_event"
 
 # 0.8.0-0.8.3 split each entry into a controller device and a heat-pump device
 # keyed by ``<device_id>:heat_pump``; setup merges them back into one.

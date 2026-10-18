@@ -515,6 +515,20 @@ CONTROLLER_SENSORS: tuple[MaconControllerSensorDescription, ...] = (
         lambda diag: diag.wifi_disconnect_count,
         enabled=True,
     ),
+    # Drops the controller counted since boot: short ones reconnected within a
+    # minute, long ones were reported as a Wi-Fi outage.
+    _count(
+        "wifi_drops_short",
+        "Wi-Fi short drops",
+        lambda diag: diag.wifi_drops_short,
+        enabled=True,
+    ),
+    _count(
+        "wifi_drops_long",
+        "Wi-Fi long drops",
+        lambda diag: diag.wifi_drops_long,
+        enabled=True,
+    ),
     MaconControllerSensorDescription(
         key="wifi_rssi",
         name="Wi-Fi signal",

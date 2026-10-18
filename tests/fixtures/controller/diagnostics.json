@@ -22,7 +22,12 @@
       "ssid": "home-network",
       "rssi_dbm": -56,
       "disconnect_count": 0,
-      "last_disconnect_reason": null
+      "last_disconnect_reason": null,
+      "drops": {
+        "total": 0,
+        "short": 0,
+        "long": 0
+      }
     },
     "time": {
       "synced": true
@@ -41,6 +46,7 @@
       "writes_ok": 0,
       "writes_failed": 0,
       "last_ok_uptime_ms": 1551992
-    }
+    },
+    "events": []
   }
 }

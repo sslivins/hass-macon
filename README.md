@@ -130,6 +130,7 @@ heat pump). Enabled by default:
 | RS485 problem | On when the heat pump stops answering polls, or another master blocks the bus. Its `last_response` attribute shows when the heat pump last answered |
 | RS485 consecutive failures | Link health at a glance |
 | Wi-Fi disconnects | Disconnects since the last boot |
+| Wi-Fi short drops, Wi-Fi long drops | Since the last boot: drops that reconnected within a minute, and outages longer than that (firmware 3.4.3+) |
 | Time sync problem | On when the clock still isn't synced 10 minutes after boot |
 | Push connection | Whether Home Assistant has a live push stream (off = fallback polling) |
 
@@ -137,6 +138,16 @@ Disabled by default (enable them from the device page): Wi-Fi signal/network,
 last disconnect reason, internal memory, the raw RS485 poll/write/frame
 counters, and **firmware pending verification**. RS485 and Wi-Fi counters
 reset when the controller reboots.
+
+**Controller problems** get their own Activity entries too (firmware 3.4.3+):
+Wi-Fi outages longer than a minute and their recovery, unstable Wi-Fi, lost
+network connections, web server restarts, crashes, watchdog and brownout
+resets — for example "Arctic Heatpump #1 Wi-Fi restored after 1 min 34 s".
+Each one is also fired as a `macon_controller_event` (with `device_id`,
+`type`, `category`, `timestamp` and `details`) for automations. The controller
+keeps them in its event log, so an outage that cut Home Assistant off is
+reported once the controller is reachable again, with the time it happened;
+problems from while Home Assistant itself was stopped are not replayed.
 
 A **Restart** button (also disabled by default) reboots the controller — not
 the heat pump. RS485 control pauses for the few seconds it takes to boot, and
