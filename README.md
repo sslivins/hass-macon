@@ -49,7 +49,7 @@ selected mode (heating setpoint in heating and freeze protection, hot-water setp
 hot-water mode, cooling setpoint in cooling, and in hot water / cooling the
 cooling setpoint while cooling and the hot-water setpoint otherwise; modes 3
 and 4 have none) — power, COP, compressor
-frequency, fan speed/level, expansion valve position, AC voltage/current, DC bus
+frequency, fan speed/level, main and aux expansion valve positions, AC voltage/current, DC bus
 voltage, and the refrigerant-circuit temperatures), the
 integration exposes a **Fault code** sensor. Its state is the stable Arctic
 Controller fault code (for example `P02`) of the highest-severity active fault,
@@ -62,9 +62,10 @@ timeline, and each fault also gets its own Activity entry that explains it,
 for example "Arctic Heatpump #1 reported fault P06: Refrigerant pressure too
 low".
 
-**Expansion valve position** is reported in raw steps, as the mainboard
-publishes no full-scale step count and therefore no meaningful percentage. It,
-along with the electrical readings, reports `unknown` rather than `0` when the
+**Expansion valve position** (main EEV) and **Aux expansion valve position**
+(the EVI/economizer valve, firmware 3.6.0+) are reported in raw steps, as the mainboard
+publishes no full-scale step count and therefore no meaningful percentage. They,
+along with the electrical readings, report `unknown` rather than `0` when the
 controller has not read the register — for the valve, `0` steps is a real state
 meaning fully closed. Reading these requires controller firmware new enough to
 publish them; older firmware simply leaves the entities `unknown`.

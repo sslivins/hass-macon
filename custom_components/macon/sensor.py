@@ -255,6 +255,16 @@ READINGS: tuple[MaconSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda value: value.state.readings.primary_eev,
     ),
+    # Auxiliary (EVI/economizer) EEV, OEM display code o6. Same raw-steps,
+    # null-means-unknown rules as the main valve; firmware before 3.6.0
+    # omits it, so the entity stays `unknown` there.
+    MaconSensorDescription(
+        key="aux_expansion_valve_position",
+        name="Aux expansion valve position",
+        native_unit_of_measurement="steps",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda value: value.state.readings.aux_eev,
+    ),
     # Electrical readings follow the same null-means-unknown rule.
     MaconSensorDescription(
         key="ac_voltage",
