@@ -234,7 +234,9 @@ READINGS: tuple[MaconSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda value: value.state.readings.fan_rpm,
     ),
-    # Expansion valve position, in raw steps.
+    # Expansion valve position, in motor steps. Controller firmware 3.8.0+
+    # reports real steps (0-500); earlier firmware sent the mainboard's
+    # steps / 10, so the value jumps 10x after a controller upgrade.
     #
     # The controller sends null (not 0) when the register has not been read,
     # because 0 steps means the valve is fully CLOSED, a real and alarming
@@ -242,8 +244,8 @@ READINGS: tuple[MaconSensorDescription, ...] = (
     # `unknown` instead of a fabricated 0.
     #
     # No device_class: Home Assistant has no valve-position/step class. No
-    # percentage either, because the mainboard publishes no full-scale step
-    # count, so a percentage could only ever be a guess.
+    # percentage either: the 500-step full travel is still an assumption
+    # pending a bench check, so steps stay the honest unit.
     #
     # The `name` slug is a contract with macon-heat-pump-card, which resolves
     # entities with entityId.endsWith("_" + suffix). This must keep producing
@@ -255,7 +257,7 @@ READINGS: tuple[MaconSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda value: value.state.readings.primary_eev,
     ),
-    # Auxiliary (EVI/economizer) EEV, OEM display code o6. Same raw-steps,
+    # Auxiliary (EVI/economizer) EEV, OEM display code o6. Same motor-steps,
     # null-means-unknown rules as the main valve; firmware before 3.6.0
     # omits it, so the entity stays `unknown` there.
     MaconSensorDescription(

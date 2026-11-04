@@ -38,7 +38,7 @@
     "readings": {
       "compressor_frequency_hz": 0,
       "fan_rpm": 0,
-      "primary_eev": 17,
+      "primary_eev": 170,
       "aux_eev": 0,
       "ac_voltage": 230,
       "ac_current": 0,

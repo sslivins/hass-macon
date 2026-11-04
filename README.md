@@ -63,8 +63,11 @@ for example "Arctic Heatpump #1 reported fault P06: Refrigerant pressure too
 low".
 
 **Expansion valve position** (main EEV) and **Aux expansion valve position**
-(the EVI/economizer valve, firmware 3.6.0+) are reported in raw steps, as the mainboard
-publishes no full-scale step count and therefore no meaningful percentage. They,
+(the EVI/economizer valve, firmware 3.6.0+) are reported in valve motor steps.
+Controller firmware 3.8.0 and later reports real steps (0-500); earlier firmware
+sent the mainboard's steps ÷ 10, so after upgrading the controller these values
+read 10x higher (for example 18 becomes 180). The unit stays `steps`, and no
+percentage is offered because the 500-step full travel is not yet confirmed. They,
 along with the electrical readings, report `unknown` rather than `0` when the
 controller has not read the register — for the valve, `0` steps is a real state
 meaning fully closed. Reading these requires controller firmware new enough to
@@ -194,10 +197,9 @@ What it shows:
   defrost.
 - **Live temperatures** at each point in the circuit, plus power input, thermal
   output, COP, and the water-side ΔT across the heat exchanger.
-- **Expansion valve position**, in valve steps. The controller does not publish
-  the valve's full-scale step count, so this is deliberately shown as a raw step
-  count rather than a percentage or a fill gauge — there is no honest way to
-  scale it without knowing the maximum.
+- **Expansion valve position**, in valve motor steps (10x the pre-3.8.0
+  controller values). The full-scale travel is not yet confirmed, so this is
+  deliberately shown as a step count rather than a percentage or a fill gauge.
 - Clicking any value opens the underlying entity's more-info dialog.
 
 ### A note on the superheat figure
