@@ -181,6 +181,15 @@
       'state_class': None,
       'unit': <UnitOfTemperature.CELSIUS: '°C'>,
     }),
+    'sensor.aux_expansion_valve_position': dict({
+      'category': None,
+      'device_class': None,
+      'enabled_by_default': True,
+      'in_logbook': False,
+      'name': 'Aux expansion valve position',
+      'state_class': <SensorStateClass.MEASUREMENT: 'measurement'>,
+      'unit': 'steps',
+    }),
     'sensor.brownout_count': dict({
       'category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
       'device_class': None,

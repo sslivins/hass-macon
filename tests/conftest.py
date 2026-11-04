@@ -15,12 +15,28 @@ from pymacon import (
     OtaStatus,
     StateSnapshot,
 )
+from pytest_homeassistant_custom_component.syrupy import (
+    HomeAssistantSnapshotExtension,
+)
+from syrupy.assertion import SnapshotAssertion
 
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Enable custom integration loading."""
     yield
+
+
+@pytest.fixture
+def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
+    """Store snapshots in tests/snapshots with the Home Assistant serializer.
+
+    syrupy and pytest-homeassistant-custom-component both register a
+    ``snapshot`` fixture, and whichever plugin loads last wins. Plugin load
+    order follows the site-packages directory listing, which differs between
+    machines, so pin the extension here instead of relying on it.
+    """
+    return snapshot.use_extension(HomeAssistantSnapshotExtension)
 
 
 def make_snapshot(
