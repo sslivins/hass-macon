@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.1
 
 - **Expansion valve sensors now read 10x higher.** Arctic controller firmware
   3.8.0 reports the main and aux EEV openings in real motor steps (0-500)
