@@ -720,6 +720,40 @@ async def test_performance_input_sensors(
     assert hass.states.get(flow_id).state == flow
     assert hass.states.get(source_id).state == source
 
+
+@pytest.mark.parametrize(
+    ("readings", "expected"),
+    [
+        ({}, ("unknown", "unknown", "unknown")),
+        (
+            {"supply_c": 24.5, "return_c": 20.1, "delta_t": 4.4},
+            ("24.5", "20.1", "4.4"),
+        ),
+        # Pump off: supply/return still published, delta T is not.
+        (
+            {"supply_c": 19.0, "return_c": 18.8, "delta_t": None},
+            ("19.0", "18.8", "unknown"),
+        ),
+    ],
+)
+async def test_loop_temperature_sensors(
+    hass: HomeAssistant,
+    mock_clients: dict[str, MagicMock],
+    readings: dict,
+    expected: tuple[str, str, str],
+) -> None:
+    await setup_entry(hass, "arctic-001", "controller-1.local")
+    mock_clients["controller-1.local"].snapshot_callback(
+        make_snapshot(revision=2, readings=readings)
+    )
+    await hass.async_block_till_done()
+
+    states = tuple(
+        hass.states.get(entity_id(hass, SENSOR_DOMAIN, f"arctic-001_{key}")).state
+        for key in ("supply_temperature", "return_temperature", "water_delta_t")
+    )
+    assert states == expected
+
 def _energy(reset_id: str | None, electrical: int, heating: int = 0) -> dict:
     return {
         "reset_id": reset_id,
