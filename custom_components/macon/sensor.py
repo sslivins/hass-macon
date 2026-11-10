@@ -151,6 +151,37 @@ TEMPERATURES: tuple[MaconSensorDescription, ...] = (
         value_fn=lambda value: value.state.temperatures_c.inlet,
         attributes_fn=lambda value: _trend(value, "inlet"),
     ),
+    # Loop supply/return from the same source as the COP (the external pipe
+    # sensors when configured, else the unit's outlet/inlet). Firmware
+    # 3.11.0+; older firmware leaves them unknown. Water delta T is
+    # supply - return and is unknown whenever the pump is off.
+    MaconSensorDescription(
+        key="supply_temperature",
+        name="Supply temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda value: value.state.readings.supply_c,
+    ),
+    MaconSensorDescription(
+        key="return_temperature",
+        name="Return temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda value: value.state.readings.return_c,
+    ),
+    MaconSensorDescription(
+        key="water_delta_t",
+        name="Water delta T",
+        device_class=SensorDeviceClass.TEMPERATURE_DELTA,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda value: value.state.readings.delta_t,
+    ),
     MaconSensorDescription(
         key="outdoor_temperature",
         name="Outdoor temperature",

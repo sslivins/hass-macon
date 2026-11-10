@@ -44,7 +44,9 @@ Controller only and makes no claim to support OEM Macon controllers.
 ## Sensors and fault reporting
 
 Alongside the climate control and the operational sensors (tank/outlet/inlet
-temperatures, setpoints — including an **Active setpoint** that follows the
+temperatures, loop **Supply**/**Return temperature** and **Water delta T** from
+the same sensors as the COP (controller firmware 3.11.0+; delta T is unknown
+while the pump is off), setpoints — including an **Active setpoint** that follows the
 selected mode (heating setpoint in heating and freeze protection, hot-water setpoint in
 hot-water mode, cooling setpoint in cooling, and in hot water / cooling the
 cooling setpoint while cooling and the hot-water setpoint otherwise; modes 3
